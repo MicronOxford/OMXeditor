@@ -80,22 +80,23 @@ class BatchDialog(wx.Dialog):
         if openDialog.ShowModal() != wx.ID_OK:
             return
 
-        saveDialog = wx.DirDialog(self,
-                "Please select where you wish to save the files")
-        if saveDialog.ShowModal() != wx.ID_OK:
-            return
+        # gb, 26/4/21 - comment out save dialog & add _SAL to aligned output instead
+        #saveDialog = wx.DirDialog(self,
+        #        "Please select where you wish to save the files")
+        #if saveDialog.ShowModal() != wx.ID_OK:
+        #    return
 
-        savePath = os.path.abspath(saveDialog.GetPath())
-        # Check for overwriting.
-        openDir = os.path.dirname(openDialog.GetPaths()[0])
-        if openDir == savePath:
-            checkDialog = wx.MessageDialog(self,
-                    "Are you sure you want to overwrite your files?",
-                    "Warning",
-                    wx.CANCEL | wx.OK | wx.STAY_ON_TOP |
-                    wx.ICON_EXCLAMATION)
-            if checkDialog.ShowModal() != wx.ID_OK:
-                return
+        #savePath = os.path.abspath(saveDialog.GetPath())
+        ## Check for overwriting.
+        #openDir = os.path.dirname(openDialog.GetPaths()[0])
+        #if openDir == savePath:
+        #    checkDialog = wx.MessageDialog(self,
+        #            "Are you sure you want to overwrite your files?",
+        #            "Warning",
+        #            wx.CANCEL | wx.OK | wx.STAY_ON_TOP |
+        #            wx.ICON_EXCLAMATION)
+        #    if checkDialog.ShowModal() != wx.ID_OK:
+        #        return
 
         files = openDialog.GetPaths()
 
@@ -130,7 +131,10 @@ class BatchDialog(wx.Dialog):
                     doc.alignParams[j] = row
                     if j == len(doc.alignParams) - 1:
                         break
-            targetFilename = os.path.join(savePath, os.path.basename(file))
+            # gb, 26/4/12 - add _SAL
+            #targetFilename = os.path.join(savePath, os.path.basename(file))
+            froot,fext = os.path.splitext(file)
+            targetFilename = froot + '_SAL' + fext
             doc.alignAndCrop(savePath = targetFilename)
         progress.Update(len(files), "All done!")
 
