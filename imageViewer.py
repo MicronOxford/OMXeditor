@@ -118,7 +118,10 @@ class GLViewer(wx.glcanvas.GLCanvas):
         
     def InitGL(self):
         self.w, self.h = self.GetClientSizeTuple()
-        self.SetCurrent()
+        # gb - substituted the lines below
+        self.context = wx.glcanvas.GLContext(self)
+        self.SetCurrent(self.context)
+        #self.SetCurrent()
         glClearColor(0.3, 0.3, 0.3, 0.0)   ## background color
 
         self.haveInitedGL = True
