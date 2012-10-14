@@ -113,9 +113,8 @@ class Image:
         cx,cy = self.imageData.shape[-1]/2., self.imageData.shape[-2]/2.
         GL.glPushMatrix()
 
-        # So we rotate about the center.
-        GL.glTranslated(self.imageData.shape[-1] / 2.0,
-                self.imageData.shape[-2] / 2.0, 0)
+        # To rotate about the center, first we have to move to it.
+        GL.glTranslated(self.dx + cx, self.dy + cy, 0)
 
         scale = [1, 1, 1]
         for axis in scaleAxes:
@@ -123,8 +122,8 @@ class Image:
         GL.glScaled(*scale)
 
         GL.glRotated(-self.angle, 0, 0, 1)
-        GL.glTranslated(self.dx - cx, self.dy - cy, 0)
-        
+        GL.glTranslated(-cx, -cy, 0)
+
         GL.glColor3fv(self.color)
         
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.textureID)
@@ -182,6 +181,6 @@ class Image:
         self.color = color
 
 
-    def setVisibility(self, isVisible):
-        self.isVisible = isVisible
+    def toggleVisibility(self):
+        self.isVisible = not self.isVisible
 

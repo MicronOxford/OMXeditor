@@ -50,6 +50,9 @@ class ViewerWindow(wx.Frame):
 
 
 
+## This class handles displaying multi-channel 2D images. It includes a 
+# crop box and a crosshairs, both of which can be manipulated by the mouse. 
+# Most of the actual drawing logic is handled in the image.Image class.
 class GLViewer(wx.glcanvas.GLCanvas):
     ## Instantiate.
     # \param axes: tuple that labels which of the dimensions this viewer shows.
@@ -118,10 +121,7 @@ class GLViewer(wx.glcanvas.GLCanvas):
         
     def InitGL(self):
         self.w, self.h = self.GetClientSizeTuple()
-        # gb - substituted the lines below
-        self.context = wx.glcanvas.GLContext(self)
-        self.SetCurrent(self.context)
-        #self.SetCurrent()
+        self.SetCurrent()
         glClearColor(0.3, 0.3, 0.3, 0.0)   ## background color
 
         self.haveInitedGL = True
@@ -174,8 +174,8 @@ class GLViewer(wx.glcanvas.GLCanvas):
         if RefreshNow:
             self.Refresh(0)
 
-    def setVisibility(self, imgidx, visible_or_not, RefreshNow = 1):
-        self.imgList[imgidx].setVisibility(visible_or_not)
+    def toggleVisibility(self, imgidx, RefreshNow = 1):
+        self.imgList[imgidx].toggleVisibility()
         if RefreshNow:
             self.Refresh(0)
         
@@ -417,7 +417,7 @@ class GLViewer(wx.glcanvas.GLCanvas):
             values, mappedCoords = self.dataDoc.getValuesAt(coord)
             for wavelength in xrange(self.dataDoc.numWavelengths):
                 text = u"\u03BB%d: " % wavelength
-                axisLabel = "%s-%s" % tuple([datadoc.DIMENSION_LABELS[a].lower() for a in self.axes])
+                axisLabel = "(%s-%s view)" % tuple([datadoc.DIMENSION_LABELS[a].lower() for a in self.axes])
                 locLabel = "<%d, %d>" % (mappedCoords[wavelength][self.axes[0] - 1],
                         mappedCoords[wavelength][self.axes[1] - 1])
                 text += "%s: at %s; %.2f" % (axisLabel, locLabel, values[wavelength])

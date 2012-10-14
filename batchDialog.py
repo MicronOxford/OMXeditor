@@ -8,7 +8,9 @@ import time
 import wx
 
 ## This dialog provides an interface for the user to batch-apply alignment
-# and cropping parameters to a large number of files.
+# and cropping parameters to a large number of files. Note that this
+# functionality is replicated in the OMX Processor program, which most users
+# are more likely to use.
 class BatchDialog(wx.Dialog):
     ## Instantiate the dialog. The important extra parameter here compared
     # to a normal dialog is controller, which is a ControlPanel instance that
@@ -19,8 +21,6 @@ class BatchDialog(wx.Dialog):
             style = wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER
             ):
         wx.Dialog.__init__(self, parent, -1, "Batch-process files", pos, size, style)
-
-        print 'BatchDialog initialized\n'
 
         self.controller = controller
 
@@ -68,6 +68,9 @@ class BatchDialog(wx.Dialog):
         self.Show()
 
 
+    ## Extract the alignment and cropping parameters from self.controller, 
+    # get the list of files from the user, then open each file, apply the 
+    # parameters, and save it.
     def OnStart(self, event):
         alignParams = self.controller.dataDoc.alignParams
         cropMin = self.controller.dataDoc.cropMin
@@ -80,23 +83,22 @@ class BatchDialog(wx.Dialog):
         if openDialog.ShowModal() != wx.ID_OK:
             return
 
-        # gb, 26/4/21 - comment out save dialog & add _SAL to aligned output instead
-        #saveDialog = wx.DirDialog(self,
-        #        "Please select where you wish to save the files")
-        #if saveDialog.ShowModal() != wx.ID_OK:
-        #    return
+        saveDialog = wx.DirDialog(self,
+                "Please select where you wish to save the files")
+        if saveDialog.ShowModal() != wx.ID_OK:
+            return
 
-        #savePath = os.path.abspath(saveDialog.GetPath())
-        ## Check for overwriting.
-        #openDir = os.path.dirname(openDialog.GetPaths()[0])
-        #if openDir == savePath:
-        #    checkDialog = wx.MessageDialog(self,
-        #            "Are you sure you want to overwrite your files?",
-        #            "Warning",
-        #            wx.CANCEL | wx.OK | wx.STAY_ON_TOP |
-        #            wx.ICON_EXCLAMATION)
-        #    if checkDialog.ShowModal() != wx.ID_OK:
-        #        return
+        savePath = os.path.abspath(saveDialog.GetPath())
+        # Check for overwriting.
+        openDir = os.path.dirname(openDialog.GetPaths()[0])
+        if openDir == savePath:
+            checkDialog = wx.MessageDialog(self,
+                    "Are you sure you want to overwrite your files?",
+                    "Warning",
+                    wx.CANCEL | wx.OK | wx.STAY_ON_TOP |
+                    wx.ICON_EXCLAMATION)
+            if checkDialog.ShowModal() != wx.ID_OK:
+                return
 
         files = openDialog.GetPaths()
 
@@ -131,10 +133,7 @@ class BatchDialog(wx.Dialog):
                     doc.alignParams[j] = row
                     if j == len(doc.alignParams) - 1:
                         break
-            # gb, 26/4/12 - add _SAL
-            #targetFilename = os.path.join(savePath, os.path.basename(file))
-            froot,fext = os.path.splitext(file)
-            targetFilename = froot + '_SAL' + fext
+            targetFilename = os.path.join(savePath, os.path.basename(file))
             doc.alignAndCrop(savePath = targetFilename)
         progress.Update(len(files), "All done!")
 

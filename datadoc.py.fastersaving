@@ -196,7 +196,7 @@ class DataDoc:
         # XYZ center, which needs to be added and subtracted from the 
         # coordinates before/after transforming so that rotation is done
         # about the center of the image.
-        center = (self.size[2:][::-1] / 2.0).reshape(3, 1)
+        center = self.size[2:][::-1].reshape(3, 1) / 2.0
         transposedCoords[:3,:] -= center
         result = numpy.zeros(targetShape, dtype = self.dtype)
         for wavelength in xrange(self.numWavelengths):
@@ -219,7 +219,7 @@ class DataDoc:
                         transformedCoords.shape[1] / self.size[1])
             else:
                 transformedCoords[0,:] = axes[1]
-            transformedCoords = transformedCoords.astype(numpy.int)
+
             resultVals = scipy.ndimage.map_coordinates(
                     self.imageArray[wavelength], transformedCoords, 
                     order = order, cval = self.averages[wavelength])
@@ -323,8 +323,8 @@ class DataDoc:
             timepoints = range(self.cropMin[1], self.cropMax[1])
 
         # Generate the cropped shape of the file.
-        croppedShape = []
-        for min, max in zip(self.cropMin, self.cropMax):
+        croppedShape = [len(wavelengths)]
+        for min, max in zip(self.cropMin[1:], self.cropMax[1:]):
             croppedShape.append(max - min)
         # Reorder to time/wavelength/z/y/x for saving.
         croppedShape[0], croppedShape[1] = croppedShape[1], croppedShape[0]
@@ -335,7 +335,7 @@ class DataDoc:
         newHeader.Num = (croppedShape[4], croppedShape[3], 
                 croppedShape[2] * croppedShape[1] * croppedShape[0])
         newHeader.NumTimes = self.size[1]
-        newHeader.NumWaves = self.size[0]
+        newHeader.NumWaves = len(wavelengths)
         # Size of the extended header -- forced to zero for now.
         newHeader.next = 0
         # Ordering of data in the file; 2 means z/w/t
@@ -353,52 +353,30 @@ class DataDoc:
             outputFile = file(savePath, 'wb')
             outputFile.write(newHeader._array.tostring())
 
-        # Slices to use to crop out the 3D volume we want to use for each
-        # wave-timepoint pair.
-        volumeSlices = []
-        for min, max in zip(self.cropMin[2:], self.cropMax[2:]):
-            volumeSlices.append(slice(min, max))
-        import time
-        start = time.time()
+
+        # For each timepoint, for each Z altitude, take a transformed slice
+        # and either write it to disk or insert it into the output array.
+        # This turns out to be rather faster than directly transforming the
+        # entire data array, oddly enough.
         for timepoint in timepoints:
-            volume = []
-            for zSlice in xrange(self.cropMin[2], self.cropMax[2]):
-                volume.append(self.takeSlice(
-                        axes = {1: timepoint, 2: zSlice})
-                )
-            volume = numpy.array(volume, dtype = numpy.float32)
+            zMin = self.cropMin[2]
+            zMax = self.cropMax[2]
+            volume = numpy.empty(croppedShape[1:], dtype = numpy.float32)
+            for altitude in xrange(zMin, zMax):
+                slice = self.takeSlice(axes = {1: timepoint, 2: altitude})
+                # Apply XY cropping
+                volume[:, altitude - zMin] = slice[:,
+                        self.cropMin[3]:self.cropMax[3],
+                        self.cropMin[4]:self.cropMax[4]]
+                
             if not savePath:
                 outputArray[timepoint] = volume
             else:
                 # Write to the file.
                 for wavelength in wavelengths:
-                    for i, zSlice in enumerate(volume):
+                    for zSlice in volume[wavelength]:
                         outputFile.write(zSlice)
-#        for timepoint in timepoints:
-#            for wavelength in wavelengths:
-#                volume = self.imageArray[wavelength][timepoint]
-#                
-#                dx, dy, dz, angle, zoom = self.alignParams[wavelength]
-#                if dz and self.size[2] == 1:
-#                    # HACK: no Z translate in 2D files. Even
-#                    # infinitesimal translates will zero out the entire slice,
-#                    # otherwise.
-#                    dz = 0
-#                if dx or dy or dz or angle or zoom != 1:
-#                    # Transform the volume.
-#                    angle = angle * numpy.pi / 180.0
-#                    volume = util.transformMatrix(
-#                            volume, dx, dy, dz, angle, zoom
-#                    )
-#                volume = volume[volumeSlices].astype(numpy.float32)
-#                if not savePath:
-#                    outputArray[timepoint, wavelength] = volume
-#                else:
-#                    # Write to the file.
-#                    for i, zSlice in enumerate(volume):
-#                        outputFile.write(zSlice)
 
-        print "Total transform and writing done in",(time.time() - start)
         if not savePath:
             # Reorder to WTZYX since that's what the user expects.
             return outputArray.transpose([1, 0, 2, 3, 4])

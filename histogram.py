@@ -6,11 +6,22 @@ import Priithon.histogram
 import numpy as N
 import wx
 
+
+## This class handles a histogram of image data, including drawing and
+# manipulation of that histogram. Largely, it is a wrapper around
+# Priithon.histogram.HistogramCanvas.
 class Histogram(wx.Panel):
-    def __init__(self, parent, id, image, color, size):
+    def __init__(self, superParent, parent, wavelength, image, color, size):
         wx.Panel.__init__(self, parent, size = size)
-        self.parent = parent
-        self.id = id
+        ## HACK: somewhere above us in the WX heirarchy; must provide:
+        # - changeHistScale()
+        # - setHelpText()
+        # - dataDoc
+        # \todo Rework this so it's cleaner and doesn't have so many 
+        # opaque backreferences.
+        self.superParent = superParent
+        ## Wavelength we are controlling.
+        self.wavelength = wavelength
         width = size[0] - 25
         self.hist = Priithon.histogram.HistogramCanvas(self, 
                 size = (width, -1))
@@ -19,24 +30,13 @@ class Histogram(wx.Panel):
         self.hist_arr = None
         self.hist_min = None
         self.hist_max = None
-        self.hist_toggleButton = None
         self.hist_show = True
         self.mmms = None
 
-        self.toggleButton = wx.ToggleButton(self, -1, str(self.id), size=(20,-1))
-        self.toggleButton.SetValue(True)
-        self.parent.prepHelpText(self.toggleButton,
-                "Toggle visibility",
-                "Show/hide display of this wavelength."
-        )
-        
         sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(self.toggleButton, 0, wx.GROW | wx.ALL, 4)
         sizer.Add(self.hist, 1, wx.GROW | wx.ALL, 1)
         self.SetSizerAndFit(sizer)
 
-        self.toggleButton.Bind(wx.EVT_TOGGLEBUTTON, self.OnToggleButton)
-        
         self.hist.doOnBrace = self.rescaleHistogram
         self.hist.doOnMouse = self.showHistogramValues
 
@@ -49,16 +49,19 @@ class Histogram(wx.Panel):
 
 
     def rescaleHistogram(self, l, r):
-        self.parent.changeHistScale(self.id, l, r)
+        self.superParent.changeHistScale(self.wavelength, l, r)
 
 
     def showHistogramValues(self, xEff, ev):
         left, right =  self.hist.leftBrace, self.hist.rightBrace
         # \todo Fix this violation of the law of Demeter
-        if self.parent.dataDoc.imageArray.dtype.type in (N.uint8, N.int16, N.uint16, N.int32):
-            wx.GetApp().setStatusbarText("I: %6.0f  left/right: %6.0f %6.0f"  %(xEff, left, right), self.id)
+        if self.superParent.dataDoc.imageArray.dtype.type in (N.uint8, N.int16, N.uint16, N.int32):
+            wx.GetApp().setStatusbarText("I: %6.0f  left/right: %6.0f %6.0f"  %(xEff, left, right), self.wavelength)
         else:
-            wx.GetApp().setStatusbarText("I: %7.2f  left/right: %7.2f %7.2f"%(xEff, left, right), self.id)
+            wx.GetApp().setStatusbarText("I: %7.2f  left/right: %7.2f %7.2f"%(xEff, left, right), self.wavelength)
+
+        self.superParent.setHelpText('Histogram',
+                "Click and drag to change the white and black points for this wavelength. Right-click to access a context menu.")
 
 
     def recalcHist(self, image):
@@ -87,10 +90,3 @@ class Histogram(wx.Panel):
         return (self.hist.leftBrace, self.hist.rightBrace)
 
 
-    def OnToggleButton(self, ev = None):
-        if ev is not None:
-            self.hist_show = self.toggleButton.GetValue()
-
-        self.parent.setWavelengthVisibility(self.id, self.hist_show)
-
-   

@@ -13,10 +13,11 @@ import batchDialog
 import cropControlPanel
 import datadoc
 import histogram
-
-import realign
-import util
 import imageViewer
+import realign
+import stereoPairs
+import util
+import viewsWindow
 
 
 ## List of colors to assign to different wavelengths in the file.
@@ -61,6 +62,7 @@ class ControlPanel(wx.Panel):
         wx.Panel.__init__(self, parent, id, style=wx.SP_NOBORDER)
         self.parent = parent
 
+        self.shouldProject = False
         ## Contains all the information on the displayed image
         self.dataDoc = datadoc.DataDoc(imageData)
 
@@ -85,7 +87,11 @@ class ControlPanel(wx.Panel):
         ## List of windows holding different views of the data.
         self.windows = []
         # Check out DataDoc.size for the ordering of these axes.
-        for axesPair in [(4, 3), (4, 2), (3, 2)]: 
+        axes = [(4, 3)]
+        if self.dataDoc.size[2] > 1:
+            # Have more than one Z slice, so show the Z views.
+            axes.extend([(4, 2), (3, 2)])
+        for axesPair in axes:
             self.windows.append(imageViewer.ViewerWindow(self, 
                             axes = axesPair,
                             dataDoc = self.dataDoc,
@@ -96,12 +102,16 @@ class ControlPanel(wx.Panel):
         base = self.parent.origPos
         self.windows[0].SetPosition(base)
         rect = self.windows[0].GetRect()
-        self.windows[1].SetPosition((rect[0], rect[1] + rect[3]))
-        self.windows[2].SetPosition((rect[0] + rect[2], rect[1]))
-        rect = self.windows[2].GetRect()
-        self.parent.SetPosition((rect[0], rect[1] + rect[3]))
-        # Adjust height based on number of wavelengths
-        self.parent.SetSize((-1, 330 + 111 * self.dataDoc.numWavelengths))
+        if len(self.windows) > 1:
+            # We have the XZ and YZ views, so we need to position them too.
+            self.windows[1].SetPosition((rect[0], rect[1] + rect[3]))
+            self.windows[2].SetPosition((rect[0] + rect[2], rect[1]))
+            rect = self.windows[2].GetRect()
+            self.parent.SetPosition((rect[0], rect[1] + rect[3]))
+        else:
+            self.parent.SetPosition((rect[0] + rect[2], rect[1]))
+
+        self.setParentSize()
 
         ## List of canvases showing actual pixels, held in each window.
         self.viewers = [window.viewer for window in self.windows]
@@ -110,6 +120,11 @@ class ControlPanel(wx.Panel):
         # alignment parameters by dragging.
         for viewer in self.viewers:
             viewer.Bind(wx.EVT_MOUSE_EVENTS, self.OnMouse)
+
+        ## Maps axis pairs to the projection mode for the corresponding viewer.
+        self.axesToProjectionMap = dict()
+        for viewer in self.viewers:
+            self.axesToProjectionMap[viewer.axes] = None
 
         ## Lock around self.updateGLGraphics so we don't try to update it
         # while already updating.
@@ -128,30 +143,26 @@ class ControlPanel(wx.Panel):
         rowSizer.Add(self.makeHelpPanel())
         self.sizer.Add(rowSizer)
 
-        self.sizer.Add(self.makeAlignPanel())
+        self.sizer.Add(self.makeWavelengthPanels())
 
-        ## Maps axes to controls to toggle visibility of those axes, just
+        ## Maps axes to whether or not the corresponding views are visible, 
         # for the views that aren't shown by default.
-        self.axesToToggleMap = dict()
-        if self.dataDoc.size[1] > 1:
-            # Add controls to show time views.
-            rowSizer = wx.BoxSizer(wx.HORIZONTAL)
-            for axes in [(4, 1), (3, 1), (2, 1)]:
-                control = wx.CheckBox(self, 
-                        label = "%s-%s view" % (datadoc.DIMENSION_LABELS[axes[0]],
-                                                datadoc.DIMENSION_LABELS[axes[1]]))
-                self.axesToToggleMap[axes] = control
-                rowSizer.Add(control, 0, wx.LEFT, 5)
-                control.Bind(wx.EVT_CHECKBOX, 
-                        lambda event, axes = axes: self.toggleNewWindow(axes))
-            self.sizer.Add(rowSizer)
+        self.axesToVisibilityMap = dict()
+        for viewer in self.viewers:
+            self.axesToVisibilityMap[viewer.axes] = True
 
-        ## Time slider for data with a time axis, or None if we don't have
-        # time.
-        self.timeSlider = None
+        ## Allows user to customize the views they see, e.g. add kymographs,
+        # or take projections of views.
+        self.viewsWindow = viewsWindow.ViewsWindow(self, self.dataDoc, 
+                title = 'View settings',
+                style = wx.RESIZE_BORDER | wx.FRAME_TOOL_WINDOW | wx.CAPTION)
+        self.viewsWindow.SetPosition((10, 40))
+        self.viewsWindow.Hide()
 
-        # Histograms go along the bottom.
-        self.sizer.Add(self.setupHistograms())
+        ## We need to track the visibility of the views window, so we know
+        # whether or not to show it when we get focus.
+        self.wasViewsWindowShown = False
+
         self.SetSizerAndFit(self.sizer)
 
         # Allow use of numpad keys to change the slice lines.
@@ -193,31 +204,66 @@ class ControlPanel(wx.Panel):
         return panel
 
     
-    ## Make the panel for aligning.
-    def makeAlignPanel(self):   
+    ## Make the panel that holds alignment parameter panels for all
+    # wavelengths, as well as the wavelength histograms. This also creates 
+    # self.alignParamsPanels, self.alignSwapButtons, and self.histograms
+    def makeWavelengthPanels(self):
         panel = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.alignParamsPanels = []
         self.alignSwapButtons = []
+
+        self.histograms = []
+        # For generating the histograms.
+        dataSlice = self.dataDoc.takeDefaultSlice((1, 2), False)
+
         for wavelength in range(self.dataDoc.numWavelengths):
             # Create the panels containing the alignment parameters for each
             # wavelength
             rowSizer = wx.BoxSizer(wx.HORIZONTAL)
-            
+
+            # This sizer holds the label, swap button, and histogram.
             columnSizer = wx.BoxSizer(wx.VERTICAL)
+
             label = wx.StaticText(panel, -1, 
-                    "%d. Align parameters: " % wavelength)
+                    "Wavelength %d" % wavelength)
             columnSizer.Add(label, 0, wx.ALL, 3)
+
+            # Holds the swap and visibility buttons.
+            buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
+
+            toggleButton = wx.ToggleButton(panel, -1, label = "Visible")
+            self.prepHelpText(toggleButton, "Toggle visibility",
+                    "Click to toggle visibility for this wavelength.")
+            toggleButton.SetValue(True)
+            toggleButton.Bind(wx.EVT_TOGGLEBUTTON, 
+                    lambda event, wavelength = wavelength: self.toggleWavelengthVisibility(wavelength))
+            buttonSizer.Add(toggleButton, 0, wx.ALL, 3)
+
             swapButton = wx.ToggleButton(panel, -1, label = "Swap")
             self.prepHelpText(swapButton, "Swap parameters", 
                     "Click on two swap buttons to exchange alignment " + 
                     "parameters between the two corresponding wavelengths.")
             swapButton.Bind(wx.EVT_TOGGLEBUTTON, self.onSwapAlignParams)
             self.alignSwapButtons.append(swapButton)
-            columnSizer.Add(swapButton, 0, wx.ALL, 3)
+            buttonSizer.Add(swapButton, 0, wx.ALL, 3)
+            
+            columnSizer.Add(buttonSizer)
+
+            color = COLORS_LIST[wavelength]
+            newHistogram = histogram.Histogram(self, panel, wavelength, 
+                    dataSlice[wavelength], color, 
+                    size = (176, -1)
+            )
+            self.histograms.append(newHistogram)
+            columnSizer.Add(newHistogram)
+
+            for viewer in self.viewers:
+                viewer.setColor(wavelength, color)
+
             rowSizer.Add(columnSizer)
             
-            initialParams = self.dataDoc.alignParams[wavelength]
+            initialParams = self.dataDoc.getAlignParams(wavelength)
             # This is called when parameters are changed.
             changeCallback = lambda wavelength = wavelength: self.setAlignParams(wavelength)
             # This is called when the checkbox to modify parameters with the 
@@ -229,41 +275,43 @@ class ControlPanel(wx.Panel):
             paramsPanel = alignParamsPanel.AlignParamsPanel(panel, 
                     self.prepHelpText,
                     initialParams, changeCallback, checkCallback, radioCallback,
-                    isFirstPanel = wavelength == 0)
+                    isFirstPanel = wavelength == 0, 
+                    style = wx.BORDER_SUNKEN)
             self.alignParamsPanels.append(paramsPanel)
 
             rowSizer.Add(paramsPanel, 0, wx.LEFT | wx.BOTTOM, 5)
             sizer.Add(rowSizer, 0, wx.LEFT, 10)
+
+        # Row of buttons.
         rowSizer = wx.BoxSizer(wx.HORIZONTAL)
         autoAlignButton = wx.Button(panel, -1, "Auto-align")
-        self.prepHelpText(autoAlignButton, "Auto-align", 
-                "Run a Simplex algorithm to attempt to automatically " + 
-                "align each wavelength with the first. This will take " + 
-                "some time. You may need to run it twice to get a good " + 
-                "alignment."
+        self.prepHelpText(autoAlignButton, "Auto-align",
+                "Run a Simplex algorithm to attempt to automatically " +
+                "align each wavelength with the first. This will take " +
+                "some time."
         )
-        autoAlignButton.Bind(wx.EVT_BUTTON, self.OnAutoAlign)
+        autoAlignButton.Bind(wx.EVT_BUTTON, self.autoAlign)
         rowSizer.Add(autoAlignButton, 0, wx.LEFT | wx.BOTTOM, 10)
 
         exportButton = wx.Button(panel, -1, "Export parameters")
         self.prepHelpText(exportButton, "Export parameters",
-                "Generate a file that contains the alignment and cropping " + 
-                "parameters for this file, so that they may be loaded " + 
+                "Generate a file that contains the alignment and cropping " +
+                "parameters for this file, so that they may be loaded " +
                 "later."
         )
-        exportButton.Bind(wx.EVT_BUTTON, self.OnExportParameters)
+        exportButton.Bind(wx.EVT_BUTTON, self.exportParameters)
         rowSizer.Add(exportButton, 0, wx.LEFT | wx.BOTTOM, 10)
 
         loadButton = wx.Button(panel, -1, "Load parameters")
         self.prepHelpText(loadButton, "Load parameters",
-                "Load a previously-generated file describing how to crop " + 
+                "Load a previously-generated file describing how to crop " +
                 "and align data."
         )
-        loadButton.Bind(wx.EVT_BUTTON, self.OnLoadParameters)
+        loadButton.Bind(wx.EVT_BUTTON, self.loadParameters)
         rowSizer.Add(loadButton, 0, wx.LEFT | wx.BOTTOM, 10)
 
         batchButton = wx.Button(panel, -1, "Batch process")
-        self.prepHelpText(batchButton, "Batch process", 
+        self.prepHelpText(batchButton, "Batch process",
                 "Apply these cropping and/or alignment parameters to " +
                 "a large number of files."
         )
@@ -280,8 +328,8 @@ class ControlPanel(wx.Panel):
     def makeHelpPanel(self):
         panel = wx.Panel(self, -1, style = wx.BORDER_SUNKEN)
         sizer = wx.BoxSizer(wx.VERTICAL)
-        self.infoText = wx.StaticText(panel, -1, ' ' * 500)
-        self.infoText.Wrap(300)
+        self.infoText = wx.StaticText(panel, -1, ' ' * 600)
+        self.infoText.Wrap(350)
         sizer.Add(self.infoText)
         panel.SetSizerAndFit(sizer)
         # Ensure the panel never shrinks.
@@ -302,41 +350,6 @@ class ControlPanel(wx.Panel):
         item.Bind(wx.EVT_MOTION, lambda event: self.setHelpText(title, text))
 
 
-    ## Create all of our histograms, and return the sizer that contains them.
-    # Also set up the time slider at this time if needed.
-    def setupHistograms(self):
-        sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        # Calculate width of histogram based on number of wavelengths, as 
-        # well as presence of a time slider.
-        histogramWidth = 600 / self.dataDoc.numWavelengths - 4
-        if self.dataDoc.size[1] > 1: # need a time slider
-            histogramWidth = 400 / self.dataDoc.numWavelengths - 8
-            topSizer = wx.BoxSizer(wx.HORIZONTAL)
-            sizer.Add(topSizer, 0, wx.ALL | wx.EXPAND, 2)
-            self.timeSlider = wx.Slider(self, wx.ID_ANY, 0, 
-                    0, self.dataDoc.size[1] - 1, 
-                    size = wx.Size(200, -1),
-                    style = wx.SL_HORIZONTAL | wx.SL_LABELS | wx.SL_AUTOTICKS)
-            topSizer.Add(self.timeSlider, 1, wx.ALL | wx.ALIGN_LEFT, 2)
-            wx.EVT_SLIDER(self, self.timeSlider.GetId(), self.OnTimeSlider)
-
-        self.histograms = []
-        dataSlice = self.dataDoc.takeDefaultSlice((1, 2), False)
-        for i in xrange(self.dataDoc.numWavelengths):
-            color = COLORS_LIST[i]
-            newHistogram = histogram.Histogram(self, i, 
-                    dataSlice[i], color, 
-                    size = (histogramWidth, -1)
-            )
-            self.histograms.append(newHistogram)
-            sizer.Add(newHistogram)
-
-            for viewer in self.viewers:
-                viewer.setColor(i, color)
-        return sizer
-
-
     ## Passthrough to the viewers to update their scalings.
     def changeHistScale(self, wavelength, minVal, maxVal):
         for viewer in self.viewers:
@@ -344,9 +357,9 @@ class ControlPanel(wx.Panel):
 
 
     ## Passthrough to the viewers to toggle the visibility of wavelengths.
-    def setWavelengthVisibility(self, wavelength, isVisible):
+    def toggleWavelengthVisibility(self, wavelength):
         for viewer in self.viewers:
-            viewer.setVisibility(wavelength, isVisible)
+            viewer.toggleVisibility(wavelength)
 
 
     ## Cause the histograms to automatically fit themselves to the current
@@ -395,12 +408,12 @@ class ControlPanel(wx.Panel):
         self.viewers[0].changeImgOffset(index, tx, ty, rot, mag, False)
         self.viewers[1].changeImgOffset(index, tx, tz, 0, mag, False)
         self.viewers[2].changeImgOffset(index, tz, ty, 0, mag, False)
-            
+
         # remember, 'mag' should only apply to lateral dimensions, therefore
         # viewers[1] and viewers[2] needs different aspect ratios in x and y (see OnPaint())
             
         # then update the sliced sections because of the translations (tx, ty, tz)
-        self.dataDoc.alignParams[index] = tx, ty, tz, rot, mag
+        self.dataDoc.setAlignParams(index, (tx, ty, tz, rot, mag))
         # Alignment parameters have changed, so we need to update our images.
         self.updateGLGraphics()
         self.setViewerScalings()
@@ -425,9 +438,9 @@ class ControlPanel(wx.Panel):
             self.alignProgressFrame = None
 
 
-    def OnTimeSlider(self, event):
-        self.dataDoc.curViewIndex[1] = event.GetInt()
-        self.updateGLGraphics()
+    ## Get the current view index for the given axis.
+    def getViewAxisIndex(self, axis):
+        return self.dataDoc.curViewIndex[axis]
 
 
     def OnMouse(self, event):
@@ -508,7 +521,7 @@ class ControlPanel(wx.Panel):
 
 
     ## Use the Simplex method to automatically align the different wavelengths.
-    def OnAutoAlign(self, event):
+    def autoAlign(self, event = None):
         referenceIndex = self.getReferenceWavelength()
 
         wavelengthsToAlign = range(self.dataDoc.numWavelengths)
@@ -556,20 +569,15 @@ class ControlPanel(wx.Panel):
 
 
     ## Retrieve the 3D array for the specified wavelength, in addition to 
-    # our reference wavelength. This is called from one of our worker 
-    # threads, so we have to deal with inter-thread communications.
-    # \todo This is pretty hackish.
+    # our reference wavelength, and pass them back to the worker.
     @callInMainThread
     def getFullVolume(self, wavelength, worker):
         reference = self.getReferenceWavelength()
         result = self.dataDoc.alignAndCrop(
                 wavelengths = [reference, wavelength], 
                 timepoints = [self.dataDoc.curViewIndex[1]])
-        worker.dataLock.acquire()
-        # Split out by wavelength and timepoint
-        worker.referenceVolume = result[0][0]
-        worker.movingVolume = result[1][0]
-        worker.dataLock.release()
+        # Take the first timepoint.
+        worker.setVolumes(result[0][0], result[1][0])
 
 
     ## Update the status text to show the user how auto-alignment is going.
@@ -670,7 +678,7 @@ class ControlPanel(wx.Panel):
 
     ## Prompt the user for a location to save alignment and cropping
     # parameters, then generate the corresponding file.
-    def OnExportParameters(self, event = None):
+    def exportParameters(self, event = None):
         defaultName = os.path.basename(self.dataDoc.filePath) + "-align.txt"
         dialog = wx.FileDialog(self, "Where do you want to save the file?",
                 os.path.dirname(self.dataDoc.filePath),
@@ -693,7 +701,7 @@ class ControlPanel(wx.Panel):
 
 
     ## Load a parameters file as generated by OnExportParameters
-    def OnLoadParameters(self, event = None):
+    def loadParameters(self, event = None):
         dialog = wx.FileDialog(self, "Please select the parameters file.",
                 os.path.dirname(self.dataDoc.filePath),
                 style = wx.FD_OPEN)
@@ -789,6 +797,7 @@ class ControlPanel(wx.Panel):
             shouldTransform = True
         elif viewer.axes != (4, 3) and self.dataDoc.hasTransformation():
             shouldTransform = True
+            
         # Only do this if we've generated a full list of images already.
         if not shouldTransform and len(viewer.imgList) == self.dataDoc.numWavelengths:
             # Ensure that the viewer is applying its own transformations.
@@ -797,15 +806,24 @@ class ControlPanel(wx.Panel):
                 # NB this only works because we know that we only apply 
                 # viewer transformations to the XY slice.
                 viewer.changeImgOffset(wavelength, dx, dy, angle, zoom, False)
-        imageSlice = self.dataDoc.takeSlice(targetCoords, shouldTransform)
+
+        # If necessary, take a projected slice.
+        imageSlice = None
+        if (viewer.axes in self.axesToProjectionMap and 
+                self.axesToProjectionMap[viewer.axes]):
+            imageSlice = self.dataDoc.takeProjectedSlice(targetCoords, self.axesToProjectionMap[viewer.axes], shouldTransform)
+        else:
+            imageSlice = self.dataDoc.takeSlice(targetCoords, shouldTransform)
+            
         # HACK: For now, transpose the YZ view so Y is vertical. Later we
         # want to make this a property of the viewer
         if viewer.axes == (2, 3):
             imageSlice = imageSlice.transpose(0, 2, 1)
         viewer.addImgL(imageSlice)
+        
         if shouldTransform:
             # OpenGL transforms should not be used since the slice already
-            # covers all that.
+            # covers all that, so clear the viewer's transforms.
             for wavelength in xrange(self.dataDoc.numWavelengths):
                 viewer.changeImgOffset(wavelength, 0, 0, 0, 1, False)
 
@@ -846,8 +864,13 @@ class ControlPanel(wx.Panel):
 
 
     ## Add or remove a new viewer window with the specified axes.
-    def toggleNewWindow(self, axes):
-        if not self.axesToToggleMap[axes].GetValue():
+    def toggleWindowVisibility(self, axes):
+        if axes not in self.axesToVisibilityMap:
+            # Never toggled this display before; add it now.
+            self.axesToVisibilityMap[axes] = False
+        self.axesToVisibilityMap[axes] = not self.axesToVisibilityMap[axes]
+        if not self.axesToVisibilityMap[axes]:
+            # Find the corresponding viewer and destroy it.
             for i, viewer in enumerate(self.viewers):
                 if viewer.axes == axes:
                     del self.viewers[i]
@@ -855,17 +878,35 @@ class ControlPanel(wx.Panel):
                     del self.windows[i]
                     break
         else:
+            # Create a new viewer.
             newWindow = imageViewer.ViewerWindow(self, axes, dataDoc = self.dataDoc)
             self.windows.append(newWindow)
             self.viewers.append(newWindow.viewer)
             self.updateGLGraphics(viewsToUpdate = [newWindow.viewer])
             self.setViewerScalings()
+            self.viewsWindow.Raise()
+
+
+    ## Show/hide our views control window.
+    def toggleViewsWindow(self):
+        self.viewsWindow.Show(not self.viewsWindow.IsShown())
+        self.wasViewsWindowShown = self.viewsWindow.IsShown()
+
+
+    ## Change the projection mode for the window with the specified axes.
+    # \param axis Axis to project along, or None to disable projection.
+    def setViewProjection(self, axes, axis):
+        self.axesToProjectionMap[axes] = axis
+        for viewer in self.viewers:
+            if viewer.axes == axes:
+                self.updateViewerDisplay(viewer)
+                wx.CallAfter(self.setViewerScalings)
 
 
     ## Refresh all viewers.
     def refreshViewers(self):
         for viewer in self.viewers:
-            viewer.Refresh(0)
+            viewer.Refresh(False)
 
 
     ## Retrieve the file this view loaded its data from.
@@ -884,23 +925,60 @@ class ControlPanel(wx.Panel):
             for axis, delta in enumerate(offset):
                 if delta and axis not in viewer.axes:
                     updatedViews.append(viewer)
-        self.updateGLGraphics(viewsToUpdate = updatedViews)
+        # Inform our ViewsWindow about the new sliceline locations.
+        self.viewsWindow.setSliders(self.dataDoc.getSliceCoords())
+        wx.CallAfter(self.updateGLGraphics, updatedViews)
         wx.CallAfter(self.setViewerScalings)
+
+
+    ## As moveSliceLines, but instead of adding an offset, sets a specific
+    # axis to a certain value.
+    def setSliceLine(self, axis, target):
+        curVal = self.dataDoc.curViewIndex[axis]
+        delta = target - curVal
+        if delta == 0:
+            # Bogus call; do nothing.
+            return
+        offset = numpy.zeros(len(self.dataDoc.size))
+        offset[axis] = delta
+        self.moveSliceLines(offset)
 
 
     ## Process keypad inputs to move the slice lines around.
     def onKey(self, code):
         if code in KEY_MOTION_MAP:
             self.moveSliceLines(KEY_MOTION_MAP[code])
-            if KEY_MOTION_MAP[code][1] and self.timeSlider:
-                # We're moving through time, so update the slider to match.
-                self.timeSlider.SetValue(self.dataDoc.curViewIndex[1])
 
 
-    ## Toggle the visibility of our child windows.
+    ## Toggle the visibility of our child windows. If we become displayed,
+    # ensure that our parent window is big enough to show all our controls.
     def setWindowVisibility(self, isVisible):
         for window in self.windows:
             window.Show(isVisible)
+        # Only show the views window if we were showing it before we were
+        # hidden earlier.
+        self.viewsWindow.Show(isVisible and self.wasViewsWindowShown)
+        if isVisible:
+            self.setParentSize()
+            self.parent.Raise()
+
+
+    ## Adjust the height of our parent so that it can contain all of our
+    # wavelength controls.
+    def setParentSize(self):
+        self.parent.SetSize((-1, 220 + 111 * self.dataDoc.numWavelengths))
+
+
+    ## Generate a stereo pair image of ourself.
+    def generateStereoPairs(self):
+        dialog = stereoPairs.StereoDialog(self, self.dataDoc)
+        dialog.ShowModal()
+        result = dialog.getResult()
+        dialog.Destroy()
+        if result:
+            # Otherwise the user canceled. 
+            self.parent.openFile(result)
+        return
 
 
     ## Simple debugging function to print out the correlation coefficient for

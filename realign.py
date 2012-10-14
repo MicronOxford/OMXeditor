@@ -35,32 +35,55 @@ class SimplexAlign(threading.Thread):
     def __init__(self, parent, referenceData, index, guess, 
                  shouldAdjustGuess = False):
         threading.Thread.__init__(self)
+        ## Our parent needs to implement certain methods so we can communicate
+        # with it.
         self.parent = parent
+        ## This is the data for the wavelength that is not transformed; the 
+        # other wavelength attempts to align itself with this.
         self.referenceData = referenceData
 
+        ## Which wavelength we are aligning.
         self.index = index
+        ## Initial transformation that we think is vaguely close to actual
+        # alignment.
         self.guess = guess
 
         # Improve the guess by doing a cross correlation.
         if shouldAdjustGuess:
             movingData = self.parent.getFilteredData(self.index)
             dx, dy = util.getOffset(self.referenceData, movingData)
-                
-            print "Modifying guess by",dx,dy
+
             self.guess[0] += dx
             self.guess[1] += dy
 
-        # Strip out the Z portion of the guess.
+        # Strip out the Z portion of the guess, for later use.
         self.zTransform = self.guess[2]
         self.guess = self.guess[:2] + self.guess[3:]
 
+        ## How close we were to perfect alignment at the start of optimization,
+        # so we can measure overall improvement.
         self.startingCost = None
+        ## How close we currently are to perfect alignment. Note that perfect
+        # alignment is a practical impossibility since the actual pixel data
+        # between two wavelengths will differ in all non-artificial cases.
         self.currentCost = None
-        self.result = None
+
+        ## This lock is used whenever we need to interact with our parent to
+        # change data (i.e. at the transition from 2D to 3D alignment).
+        self.dataLock = threading.Lock()
+
+        ## For 3D alignment, the data that is held fixed in place.
+        self.referenceVolume = None
+        ## For 3D alignment, the data that moves with respect to 
+        # self.referenceVolume
+        self.movingVolume = None
 
         self.start()
 
 
+    ## Perform optimization. First we do 2D alignment; then we align Z while
+    # holding the 2D transformation parameters fixed (on the assumption that
+    # Z alignment is independent of 2D alignment). 
     def run(self):
         # Keep iterating Simplex until the cost doesn't change much from
         # one iteration to the next. Simplex is prone to getting stuck in 
@@ -83,11 +106,10 @@ class SimplexAlign(threading.Thread):
         # tricky.
         # No Z alignment for flat images, of course.
         if self.parent.dataDoc.size[2] > 1:
-            self.referenceVolume, self.movingVolume = None, None
-            self.dataLock = threading.Lock()
             self.parent.getFullVolume(self.index, self)
             while True:
                 self.dataLock.acquire()
+                # Note these are initialized to None in our constructor
                 if self.referenceVolume is not None and self.movingVolume is not None:
                     self.dataLock.release()
                     break
@@ -98,19 +120,26 @@ class SimplexAlign(threading.Thread):
             if self.referenceVolume.shape[0] == 1:
                 result = 0
             else:
+                # Inform the progress dialog that we're in 3D mode now.
                 self.parent.alignSwitchTo3D(self.index)
                 # Just a single pass here should be sufficient.
-		# gb 12/10/11: changed xtol from .00001 to .000001
                 result = scipy.optimize.fmin(self.cost3D, 
                         [self.zTransform / Z_MULTIPLIER], 
-                        xtol = .000001)[0]
-                # gb, 26/4/12 - move zTransform update inside if/else, and add to initial value
-                self.zTransform = self.zTransform + result * Z_MULTIPLIER
+                        xtol = .00001)[0]
+            self.zTransform = result * Z_MULTIPLIER
         
         transform = transform * STEP_MULTIPLIER + self.guess
         transform = (transform[0], transform[1], self.zTransform, 
                      transform[2], transform[3])
         self.parent.finishAutoAligning(transform, self.index)
+
+
+    ## Accept new working volumes from our parent.
+    def setVolumes(self, referenceVolume, movingVolume):
+        self.dataLock.acquire()
+        self.referenceVolume = referenceVolume
+        self.movingVolume = movingVolume
+        self.dataLock.release()
 
 
     ## Return 1 minus the correlation coefficient between the two arrays.

@@ -4,6 +4,7 @@ import Priithon.Mrc
 
 import numpy
 import scipy.ndimage
+import wx
 
 ## Maps dimensional axes to their labels.
 DIMENSION_LABELS = ['Wavelength', 'Time', 'Z', 'Y', 'X']
@@ -30,7 +31,9 @@ class DataDoc:
         numX = self.imageHeader.Num[0]
         numY = self.imageHeader.Num[1]
         numZ = self.imageHeader.Num[2] // (self.numWavelengths * numTimepoints)
-        ## Size in pixels of the data.
+        ## Size in pixels of the data, since having it as a Numpy array
+        # instead of a tuple (from self.imageArray.shape) is occasionally
+        # handy.
         self.size = numpy.array([self.numWavelengths, numTimepoints, numZ, numY, numX], dtype = numpy.int)
         ## 5D array of pixel data, indexed as 
         # self.imageArray[wavelength][time][z][y][x]
@@ -64,6 +67,11 @@ class DataDoc:
         # Default zoom to 1.0
         self.alignParams[:,4] = 1.0
 
+        ## List of functions to call whenever the alignment parameters change.
+        # Each will be passed self.alignParams so it can take whatever
+        # action is necessary.
+        self.alignCallbacks = []
+
 
     ## Convert the loaded MRC object into a 5D array of pixel data. How we
     # do this depends on the ordering of X/Y/Z/time/wavelength in the file --
@@ -94,10 +102,87 @@ class DataDoc:
         return dataCopy.transpose(ordering)
 
 
-    ## Generate a 2D slice of our data in each wavelength. Since our data is 5D
-    # (wavelength/time/Z/Y/X), there are three axes to be perpendicular to,
-    # one of which is always wavelength. The "axes" argument maps the other
-    # two axis indices to the coordinate the slice should pass through.
+    ## Passthrough to takeSliceFromData, using our normal array.
+    def takeSlice(self, axes, shouldTransform = True, order = 1):
+        return self.takeSliceFromData(self.imageArray, axes, shouldTransform, order)
+
+
+    ## As takeSlice, but do a max-intensity projection across one axis. This
+    # becomes impossible to do efficiently if we have rotation or scaling in
+    # a given wavelength, so we just have to transform the entire volume. It
+    # gets *really* expensive if we want to do projections across time with 
+    # this...
+    # \todo We could be a bit more efficient here since only the wavelengths
+    # with nonzero rotation/scaling need to be transformed as volumes. 
+    def takeProjectedSlice(self, axes, projectionAxis, shouldTransform,
+            order = 1):
+        if (projectionAxis == 2 or 
+                (numpy.all(self.alignParams[:,3] == 0) and 
+                 numpy.all(self.alignParams[:,4] == 1))):
+            # Scaling/rotation doesn't affect the projection; lucky us!
+            data = self.imageArray.max(axis = projectionAxis)
+            # Augment data with an extra dimension to replace the one we
+            # flattened out.
+            data = numpy.expand_dims(data, projectionAxis)
+            # Since we flattened out this axis, change its index to be the only
+            # possible valid index.
+            axes[projectionAxis] = 0
+            return self.takeSliceFromData(data, axes, shouldTransform, order)
+        elif projectionAxis in [3, 4]:
+            # Projecting through Y or X; just transform the local volume.
+            dialog = wx.ProgressDialog(
+                    title = "Constructing projection",
+                    message = "Please wait...",
+                    maximum = self.size[0],
+                    style = wx.PD_AUTO_HIDE | wx.PD_REMAINING_TIME)
+            curTimepoint = self.curViewIndex[1]
+            data = []
+            for wavelength in xrange(self.size[0]):
+                data.append(util.transformArray(
+                        self.imageArray[wavelength, curTimepoint], 
+                        *self.alignParams[wavelength], 
+                        order = 1))
+                dialog.Update(wavelength)
+            data = numpy.array(data, dtype = self.dtype)
+            dialog.Destroy()
+            return data.max(axis = projectionAxis - 1)
+        else:
+            # Projecting through time; transform EVERY volume. Ouch.
+            dialog = wx.ProgressDialog(
+                    title = "Constructing projection",
+                    message = "Please wait...",
+                    maximum = self.size[0] * self.size[1],
+                    style = wx.PD_AUTO_HIDE | wx.PD_REMAINING_TIME)
+            data = []
+            for timepoint in xrange(self.size[1]):
+                timeData = []
+                for wavelength in xrange(self.size[0]):
+                    volume = util.transformArray(
+                            self.imageArray[wavelength, timepoint], 
+                            *self.alignParams[wavelength], 
+                            order = 1)
+                    timeData.append(volume)
+                    dialog.Update(timepoint * self.size[0] + wavelength)
+                timeData = numpy.array(timeData, dtype = self.dtype)
+                data.append(timeData)
+                
+            data = numpy.array(data, dtype = self.dtype)
+            data = data.max(axis = 0)
+            dialog.Destroy()
+            # Slice through data per our axes parameter.
+            slice = [Ellipsis] * 4
+            for axis, position in axes.iteritems():
+                if axis != 1:
+                    slice[axis - 1] = position
+                    return data[slice]
+            raise RuntimeError("Couldn't find a valid slice axis.")
+
+
+    ## Generate a 2D slice of the given data in each wavelength. Since the
+    # data is 5D (wavelength/time/Z/Y/X), there are three axes to be 
+    # perpendicular to, one of which is always wavelength. The "axes" 
+    # argument maps the other two axis indices to the coordinate the slice 
+    # should pass through.
     # E.g. passing in {1: 10, 2: 32} means to take a WXY slice at timepoint
     # 10 through Z index 32.
     # This was fairly complicated for me to figure out, since I'm not a 
@@ -124,14 +209,14 @@ class DataDoc:
     # - Pass the list of coordinates off to numpy.map_coordinates so it can
     #   look up actual pixel values.
     # - Reshape the resulting array to match the slice shape.
-    def takeSlice(self, axes, shouldTransform = True, order = 1):
+    def takeSliceFromData(self, data, axes, shouldTransform = True, order = 1):
         if shouldTransform:
             targetShape = []
             targetAxes = []
             presets = [-1] * 5
             # Generate an array to hold the slice. Note this includes all
             # wavelengths.
-            for i, size in enumerate(self.size):
+            for i, size in enumerate(data.shape):
                 if i not in axes:
                     targetShape.append(size)
                     targetAxes.append(i)
@@ -147,19 +232,19 @@ class DataDoc:
             # Axes here are in WTZYX order, so we need to reorder them to XYZ.
             for axis in [2, 3, 4]:
                 if axis in targetAxes:
-                    basis = numpy.arange(self.size[axis])
-                    if (self.size[axis] == targetCoords.shape[0] and 
+                    basis = numpy.arange(data.shape[axis])
+                    if (data.shape[axis] == targetCoords.shape[0] and 
                             not haveAlreadyResized):
                         # Reshape into a column vector. We only want to do this
                         # once, but unfortunately can't tell solely with the 
                         # length of the array in the given axis since it's not
                         # uncommon for e.g. X and Y to have the same size.
-                        basis.shape = self.size[axis], 1
+                        basis.shape = data.shape[axis], 1
                         haveAlreadyResized = True
                     targetCoords[:,:,4 - axis] = basis
                 else:
                     targetCoords[:,:,4 - axis] = axes[axis]
-            return self.mapCoords(targetCoords, targetShape, axes, order)
+            return self.mapCoords(data, targetCoords, targetShape, axes, order)
         else:
             # Simply take an ordinary slice.
             # Ellipsis is a builtin keyword for the full-array slice. Who knew?
@@ -169,18 +254,19 @@ class DataDoc:
                     slices.append(axes[axis])
                 else:
                     slices.append(Ellipsis)
-            return self.imageArray[slices]
+            return data[slices]
 
 
     ## Inverse-transform the provided coordinates and use them to look up into
-    # our data, to generate a transformed slice of the specified shape along
-    # the specified axes.
+    # the given array, to generate a transformed slice of the specified shape
+    # along the specified axes.
+    # \param data A 5D array of pixel data (WTZYX)
     # \param targetCoords 4D array of WXYZ coordinates.
     # \param targetShape Shape of the resulting slice.
     # \param axes Axes the slice cuts along.
     # \param order Spline order to use when mapping. Lower is faster but 
     #        less accurate
-    def mapCoords(self, targetCoords, targetShape, axes, order):
+    def mapCoords(self, data, targetCoords, targetShape, axes, order):
         # Reshape into a 2D list of the desired coordinates
         targetCoords.shape = numpy.product(targetShape[1:]), 3
         # Insert a dummy 4th dimension so we can use translation in an 
@@ -196,10 +282,10 @@ class DataDoc:
         # XYZ center, which needs to be added and subtracted from the 
         # coordinates before/after transforming so that rotation is done
         # about the center of the image.
-        center = self.size[2:][::-1].reshape(3, 1) / 2.0
+        center = numpy.array(data.shape[2:][::-1]).reshape(3, 1) / 2.0
         transposedCoords[:3,:] -= center
         result = numpy.zeros(targetShape, dtype = self.dtype)
-        for wavelength in xrange(self.numWavelengths):
+        for wavelength in xrange(data.shape[0]):
             # Transform the coordinates according to the alignment 
             # parameters for the specific wavelength.
             transformedCoords = numpy.dot(inverseTransforms[wavelength],
@@ -215,18 +301,18 @@ class DataDoc:
             transformedCoords = tmp
             if 1 not in axes:
                 # User wants a cut across time.
-                transformedCoords[0,:] = numpy.arange(self.size[1]).repeat(
-                        transformedCoords.shape[1] / self.size[1])
+                transformedCoords[0,:] = numpy.arange(data.shape[1]).repeat(
+                        transformedCoords.shape[1] / data.shape[1])
             else:
                 transformedCoords[0,:] = axes[1]
 
             resultVals = scipy.ndimage.map_coordinates(
-                    self.imageArray[wavelength], transformedCoords, 
+                    data[wavelength], transformedCoords, 
                     order = order, cval = self.averages[wavelength])
             resultVals.shape = targetShape[1:]
             result[wavelength] = resultVals
             
-        return result        
+        return result
 
 
     ## Return the value for each wavelength at the specified TZYX coordinate, 
@@ -306,6 +392,23 @@ class DataDoc:
         return False
 
 
+    ## Register a callback to be invoked when the alignment parameters change.
+    def registerAlignmentCallback(self, callback):
+        self.alignCallbacks.append(callback)
+
+
+    ## Update the alignment parameters, then invoke our callbacks. 
+    def setAlignParams(self, wavelength, params):
+        self.alignParams[wavelength] = params
+        for callback in self.alignCallbacks:
+            callback(self.alignParams)
+
+
+    ## Get the current alignment parameters for the specified wavelength.
+    def getAlignParams(self, wavelength):
+        return self.alignParams[wavelength]
+
+
     ## Apply our alignment parameters to the data, then crop them, and either
     # return the result for the specified wavelength(s), or save the result
     # to the specified file path. If no wavelengths are specified, use them all.
@@ -360,12 +463,8 @@ class DataDoc:
             volumeSlices.append(slice(min, max))
         
         for timepoint in timepoints:
-            #IMD 20111011 We need to interate over the wavelengths in
-            #the alignment set rather than Chnaging these two lines
-            #alows us to not overrun the outputArray when doing
-            #alignment.
-            for wavelength in range(len(wavelengths)):
-                volume = self.imageArray[wavelengths[wavelength]][timepoint]
+            for waveIndex, wavelength in enumerate(wavelengths):
+                volume = self.imageArray[wavelength][timepoint]
                 
                 dx, dy, dz, angle, zoom = self.alignParams[wavelength]
                 if dz and self.size[2] == 1:
@@ -375,7 +474,6 @@ class DataDoc:
                     dz = 0
                 if dx or dy or dz or angle or zoom != 1:
                     # Transform the volume.
-                    angle = angle * numpy.pi / 180.0
                     volume = util.transformArray(
                             volume, dx, dy, dz, angle, zoom
                     )
@@ -383,12 +481,7 @@ class DataDoc:
                 volume = volume[volumeSlices].astype(numpy.float32)
 
                 if not savePath:
-                    # IMD 11/10/2011 If doing alignment of more than 2
-                    # wavelengths then we need to make sure that the
-                    # wavelength doesnt go off the end of the
-                    # outputArray, solved by changing wavelength for
-                    # loop above.
-                    outputArray[timepoint, wavelength] = volume
+                    outputArray[timepoint, waveIndex] = volume
                 else:
                     # Write to the file.
                     for i, zSlice in enumerate(volume):
@@ -425,10 +518,12 @@ class DataDoc:
         return numpy.array([self.size[axis1], self.size[axis2]])
 
 
-    ## Get the default set of target coords needed to call takeSlice, based on
-    # self.curViewIndex. The input is a size-2 list of axes that the view is
-    # normal to.
-    def getSliceCoords(self, axes):
+    ## Returns a mapping of axes to our view positions on those axes.
+    # \param axes A list of axes, e.g. [0, 3] for (time, Y). If None, then
+    #        operate on all axes.
+    def getSliceCoords(self, axes = None):
+        if axes is None:
+            axes = range(5)
         return dict([(axis, self.curViewIndex[axis]) for axis in axes])
 
 

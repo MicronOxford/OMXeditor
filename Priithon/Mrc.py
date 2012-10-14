@@ -31,40 +31,16 @@ class Mrc:
         self.path     = os.path.abspath(path)
         self.filename = os.path.basename(path)
 
-        #self.m
-        #self.h
-        #self.hdrArray
-        #self.hdr = self.hdrArray[0].field
-        #self.data_offset = = 1024 + self.hdr.next
-        #self.d
-        #self._nzBeforeByteOrder
-
-        #self.e  = self.m[1024:self.data_offset]
-        #self.numInts = self.hdr.NumIntegers
-        #self.numFloats = self.hdr.NumFloats
-        #self.extHdrArray
-        #self.extInts   = self.extHdrArray.field('int')
-        #self.extFloats = self.extHdrArray.field('float')
-        #self.data
-
         if extHdrSize and extHdrSize % 1024:
             raise ValueError, "extended header size needs to be integer multiple of 1024"
-        #20060818 if not extHdrSize and (extHdrNints or extHdrNfloats):
-        #20060818     raise "extHdrNints and extHdrNfloats must be 0 if no extHdrSize"
 
         self.m = N.memmap(path, mode=mode)
         self.h = self.m[:1024]
         
-        
-        #20060818 self._hdrArray = makeHdrArray(self.h)
-        #20060818 self.hdr = implement_hdr( self._hdrArray )
         self.hdr = makeHdrArray(self.h)
         
         nzBeforeByteOrder = self.hdr.Num[0]
-        if nzBeforeByteOrder<0 or \
-               nzBeforeByteOrder>10000:
-
-            #newbyteorder()
+        if nzBeforeByteOrder<0 or nzBeforeByteOrder>10000:
             self.hdr._array.dtype = self.hdr._array.dtype.newbyteorder() 
             self.isByteSwapped = True
         else:    
@@ -72,7 +48,6 @@ class Mrc:
             
         self.data_offset = 1024 + self.hdr.next
         self.d = self.m[self.data_offset:]
-
 
         self.e = self.m[1024:self.data_offset]
 
@@ -87,24 +62,8 @@ class Mrc:
         else:
             self.extHdrArray = None
 
-    ## this could prevent garbage collector ... 
-    # http://arctrix.com/nas/python/gc/
-
-    # Circular references which are garbage are detected when the optional cycle detector is enabled (it's on by default), but can only be cleaned up if there are no Python-level __del__() methods involved. Refer to the documentation for the 'gc' module for more information about how __del__() methods are handled by the cycle detector, particularly the description of the garbage value. Notice: [warning] Due to the precarious circumstances under which __del__() methods are invoked, exceptions that occur during their execution are ignored, and a warning is printed to sys.stderr instead. Also, when __del__() is invoked in response to a module being deleted (e.g., when execution of the program is done), other globals referenced by the __del__() method may already have been deleted. For this reason, __del__() methods should do the absolute minimum needed to maintain external invariants.
-
-
-
-#   def __del__(self):
-#       print "debug: Mrc.__del__ (close()) called !"
-#       try:
-#           #self.m.close()
-#           self.close()
-#       except:
-#           pass
 
     def insertExtHdr(self, numInts, numFloats, nz=-1):
-        '''20051201 - test failed - data did NOT get shifted my next bytes !!!'''
-        
         if numInts == numFloats == 0:
             raise "what ??"
         if self.data_offset != 1024:
@@ -142,24 +101,18 @@ class Mrc:
         if nz < 0 or nz>maxnz:
             nz=maxnz
 
-        byteorder = '=' # 20070206 self.isByteSwapped and '>' or '<'
-        #         self.extHdrArray = N.rec.frombuffer(self.e, formats="%di4,%df4"%(self.numInts,self.numFloats),
-        #                                         names='int,float',
-        #                                         shape=nz,
-        #                                         byteorder=byteorder)
+        byteorder = '='
         type_descr = [("int",   "%s%di4"%(byteorder,self.numInts)),
                       ("float", "%s%df4"%(byteorder,self.numFloats))]
 
-        #self.extHdrArray = self.e.view()
-        #self.extHdrArray.__class__ = N.recarray
-        #self.extHdrArray.dtype = type_descr
         self.extHdrArray = N.recarray(shape=nz, dtype=type_descr, buf=self.e)
         if self.isByteSwapped:
             self.extHdrArray = self.extHdrArray.newbyteorder()
         
         self.extInts   = self.extHdrArray.field('int')
         self.extFloats = self.extHdrArray.field('float')
-        
+
+
     def doDataMap(self):
         dtype = MrcMode2dtype( self.hdr.PixelType )
         shape = shapeFromHdr(self.hdr)
@@ -171,9 +124,6 @@ class Mrc:
             print "** WARNING **: file truncated - shape from header:", shape,"expected to get",N.prod(shape),"but got",n0
             n1 = N.prod(shape[1:])
             s0 =  n0 // n1 # //-int-division (rounds down)
-            #if s0 == 1:
-            #    shape = shape[1:]
-            #else:
             shape = (s0,) + shape[1:]
             self.data = self.data[:N.prod(shape)]
 
@@ -181,6 +131,7 @@ class Mrc:
             
         if self.isByteSwapped:
             self.data = self.data.newbyteorder()
+
 
     def setTitle(self, s, i=-1):
         """set title i (i==-1 means "append") to s"""
@@ -203,7 +154,6 @@ class Mrc:
 
     def looksOK(self, verbose=1):
         """do some basic checks like filesize, ..."""
-        # print "TODO"
         shape = self.data.shape
         b = self.data.dtype.itemsize
         eb = N.prod( shape ) * b
@@ -244,22 +194,9 @@ class Mrc:
         """use this to get 'spiffed up' array"""
 
         import weakref
-        #NOT-WORKING:  self.data.Mrc = weakref.proxy( self )
-
-        #20071123: http://www.scipy.org/Subclasses
         class ndarray_inMrcFile(N.ndarray):
             def __array_finalize__(self,obj):
                 self.Mrc = getattr(obj, 'Mrc', None)
-#         class ndarray_inMrcFile(N.memmap):
-#             pass
-#             def __new__(subtype, data, info=None, dtype=None, copy=False):
-#                 #subarr = N.array(data, dtype=dtype, copy=copy)
-#                 #subarr = subarr.view(subtype)
-#                 subarr = data.view(subtype)
-#                 return subarr
-
-#             def __array_finalize__(self,obj):
-#                 self.Mrc = getattr(obj, 'Mrc', None)
 
         data = self.data
         data.__class__ = ndarray_inMrcFile
@@ -270,86 +207,8 @@ class Mrc:
         return data
         
 
-    '''
-    def _newDataType(self, dtype ):
-        """ set size to zero !! flush !
-        self.data changes !!!!"""
-
-        shape = (0,0,0)
-        self.hdr.Num =shape[2], shape[1], shape[0]
-        self.hdr.PixelType = dtype2MrcMode( dtype )
-
-        #self.shape = self.hdr.Num[::-1]
-        #self.type = MrcMode2dtype( self.hdr.PixelType )
-        try:
-            self.data.resize( shape )
-        except:
-            self.flush()
-            self.data.resize( shape )
-        self.flush()
-        self.data = N.array(self.d, shape=shape, dtype=dtype, copy=False)
-        
-    def _newDataSizeType(self, shape, type=None ):
-        """if type!=None --> self.data changes !!!!"""
-        #2004/05/18 if len(shape) != 3:
-        #2004/05/18    raise "TODO: shape =! z,y,x -> just ny,nx, or (z2,z1,y,x)"
-        #2004/05/18
-        if len(shape) < 2:
-            raise ValueError, "don't know about data of ndime less than 2"
-        nz = N.prod( shape[:-2] )
-        
-        if type and type != self.data.dtype:
-            self._newDataType( type )
-        try:
-            self.data.resize( shape )
-        except:
-            self.flush()
-            try:
-                self.data.resize( shape )
-            except:
-                raise RuntimeError, "resize failed - tried even calling flush() ... ;-( "
-
-        #2004/05/18  hhh.setfield('Num', (shape[2], shape[1], shape[0]))
-        self.hdr.Num = shape[-1], shape[-2], nz
-        #2004/05/18  TODO:
-        #          set numtimes and numwaves for higher ndims
-
-        
-        #          hhh.setfield('PixelType', dtype2MrcMode( type ))
-
-        #self.shape = self.hdr.Num[::-1]
-        #          self.type = MrcMode2dtype( self.hdr.PixelType )
-
-
-        # self.m.flush()
-    def newDataSize(self, shape):
-        #2004/05/18
-        if len(shape) < 2:
-            raise ValueError, "don't know about data of ndime less than 2"
-        #2004/05/18 if len(shape) != 3:
-        #2004/05/18     raise "TODO: shape =! z,y,x -> just ny,nx, or (z2,z1,y,x)"
-        nz = N.prod( shape[:-2] )
-
-        try:
-            self.data.resize( shape )
-        except:
-            raise RuntimeError, "resize failed - try calling flush()"
-
-        #2004/05/18  hhh.setfield('Num', (shape[2], shape[1], shape[0]))
-        self.hdr.Num =shape[-1], shape[-2], nz
-        #2004/05/18  TODO:
-        #          set numtimes and numwaves for higher ndims
-
-        #self.shape = self.hdr.Num[::-1]
-    '''
     def close(self):
-        #if self.mode == 'w+':
-        #    self.calcMMM()
         self.m.close()
-    #     def sync(self):
-    #         self.m.sync()
-    #     def flush(self):
-    #         self.m.flush()
 
 
 
@@ -499,12 +358,8 @@ class Mrc2:
         if mode in ('r', 'r+') :
             self._initFromExistingFile()
 
-            #111 - now we will have real extHdr support
-            #111 self._dataOffset += self.hdr.next #HACK
             self.seekSec(0)
         else:
-            #20060818 self._hdrArray = makeHdrArray()
-            #20060818 self.hdr = implement_hdr( self._hdrArray )
             self.hdr = makeHdrArray()
 
             self._shape   = None
@@ -602,8 +457,7 @@ class Mrc2:
                                              formats="%di4,%df4"%(self._extHdrNumInts,
                                                                   self._extHdrNumFloats),
                                              names='int,float',
-                                             shape=nSecs  )#,
-                                             #byteorder=byteorder)
+                                             shape=nSecs  )
 
             if self._fileIsByteSwapped:
                 self._extHdrArray.newbyteorder()
@@ -625,11 +479,6 @@ class Mrc2:
         self.hdr.PixelType =  mrcmode
         self.hdr.Num = shape[-1],shape[-2],  N.prod(shape[:-2])
         self._initWhenHdrArraySet()
-        #       self._shape = shape
-        #       self._shape2d = self._shape[-2:]
-        #       self._dtype  = type
-        #       self._secByteSize = self._dtype.itemsize * N.prod( self._shape2d )
-        #       #init_simple(self._hdrArray, mrcmode, shape)
 
 
     def makeExtendedHdr(self, numInts, numFloats, nSecs=None):
@@ -645,12 +494,10 @@ class Mrc2:
 
         if self._extHdrSize>0 and (self._extHdrNumInts>0 or self._extHdrNumFloats>0):
             nSecs = int( self._extHdrSize / self._extHdrBytesPerSec )
-            self._extHdrArray = N.recarray(nSecs,#None,#self._f,
+            self._extHdrArray = N.recarray(nSecs,
                                            formats="%di4,%df4"%(self._extHdrNumInts,
                                                                 self._extHdrNumFloats),
                                            names='int,float')
-                                           # shape=nSecs)#  ,
-                                           #byteorder=byteorder)
 
             self.extInts   = self._extHdrArray.field('int')
             self.extFloats = self._extHdrArray.field('float')
@@ -667,7 +514,7 @@ class Mrc2:
         self._f.flush()
         
     def seekSec(self, i):
-        if self._secByteSize == 0: # type is None or self._shape2d is None:
+        if self._secByteSize == 0:
             raise ValueError, "not inited yet - unknown shape, type"
         self._f.seek( self._dataOffset + i * self._secByteSize )
 
@@ -693,8 +540,6 @@ class Mrc2:
         if i is not None:
             self.seekSec(i)
 
-        # todo check type, shape
-
         return a.tofile(self._f)
 
 
@@ -713,8 +558,6 @@ class Mrc2:
         """
         if i is not None:
             self.seekSec(i)
-
-        # todo check type, shape
 
         return a.tofile(self._f)
 
@@ -746,12 +589,12 @@ def minExtHdrSize(nSecs, bytesPerSec):
 
 
 def MrcMode2dtype(mode):
-    PixelTypes = (N.uint8, N.int16, N.float32,  # 0 1 2
-                  N.float32, # FIXME               # 3
-                  N.complex64,                    # 4
-                  N.int16,                        # 5 (IW_EMTOM)
-                  N.uint16,                       # 6
-                  N.int32                         # 7
+    PixelTypes = (N.uint8, N.int16, N.float32,
+                  N.float32,
+                  N.complex64,
+                  N.int16,
+                  N.uint16,
+                  N.int32
                   )
 
     if mode<0 or mode>7:
@@ -766,12 +609,8 @@ def dtype2MrcMode(dtype):
         return 1
     if dtype == N.float32:
         return 2
-#      if type == N.int8:
-#          return 3
     if dtype == N.complex64:
         return 4
-#      if type == N.In:
-#          return 5
     if dtype == N.uint16:
         return 6
     if dtype == N.int32:
@@ -791,10 +630,8 @@ def shapeFromHdr(hdr, verbose=0):
     nt,nw = hdr.NumTimes, hdr.NumWaves
     nx, ny, nsecs =  hdr.Num
     if nt == 0:
-        #20051213(ref."other's" MRC) print " ** NumTimes is zero - I assume 1."
         nt=1
     if nw == 0:
-        #20051213(ref."other's" MRC) print " ** NumWaves is zero - I assume 1."
         nw=1
     nz = nsecs / nt / nw
 
@@ -846,18 +683,11 @@ def implement_hdr(hdrArray):
         def __init__(s):
             pass    
         def __setattr__(s, n, v):
-            #20070131 hdrArray.field(n)[0] = v
             hdrArray[n][0] = v
         def __getattr__(s, n):
             if n == '_array':
-                return hdrArray   # 20060818
-            #20070131 return hdrArray.field(n)[0]
+                return hdrArray
             return hdrArray[n][0]
-
-        ## depricated !!
-        #def __call__(s, n):
-        #    return hdrArray.field(n)[0]
-
 
     return hdr()
 
@@ -865,16 +695,12 @@ def implement_hdr(hdrArray):
 # class function
 def makeHdrArray(buffer=None):
     if buffer is not None:
-        #20070131  h = buffer.view()
-        #20060131  h.__class__ = N.recarray
         h=buffer
         h.dtype = mrcHdr_dtype
-        import weakref         #20070131   CHECK if this works
-        h = weakref.proxy( h ) #20070131   CHECK if this works
+        import weakref
+        h = weakref.proxy( h )
     else:
         h = N.recarray(1, mrcHdr_dtype)
-
-    #20060818 return h
     return implement_hdr(h)
 
 # class function
@@ -898,7 +724,7 @@ def hdrInfo(hdr):
     else:
         if nt == 1  and  nw == 1:
             print
-        elif nw == 1: # TODO: make comment about order
+        elif nw == 1:
             print "  (%d times for %d zsecs)"% (nt, nz/nt)
         elif nt == 1:
             print "  (%d waves in %d zsecs)"% (nw, nz/nw)
@@ -930,13 +756,6 @@ def hdrInfo(hdr):
         print "   wavelength 5  (nm):      ", hdr.wave[4]
         print "    intensity min/max:      ", hdr.mm5[0], hdr.mm5[1]
     
-    #/  ostr + "# times:              " + num_times + '\n';
-    #/  ostr += "# slice order:        " + 0 or 1 or 2 (ZTW or WZT or ZWT) + '\n';
-    
-    
-    #/  ostr +="filetype:              " += filetype ... 0=normal, ..., 2=stereo ...
-    #/    ostr += "n1, n2, v1, v2:          " +=  depend on filetype ....
-    
     print "lens type:                  ", hdr.LensNum,
     if hdr.LensNum == 12:
         print " (60x)"
@@ -967,7 +786,6 @@ def hdrInfo(hdr):
     else                         :
         print " ** undefined ** "
 
-    #//ostr += "bytes before image data:     " + 1024+inbsym + '\n';
     print "# extended header size:       ", hdr.next,
     if hdr.next > 0:
         n = numInts + numFloats
@@ -1039,17 +857,17 @@ def init_simple(hdr, mode, nxOrShape, ny=None, nz=None):
 
     hdr.Num = (nx,ny,nz)
     hdr.PixelType = mode
-    hdr.mst = (0,0,0) # 20060614: bugfixed was: (1,1,1))
-    hdr.m   = (1,1,1)  # CHECK : should be nx,ny,nz ??
+    hdr.mst = (0,0,0)
+    hdr.m   = (1,1,1)
     hdr.d   = (1,1,1)
-    hdr.angle = (90,90,90) # 20060202: changed alpha,beta,gamma to 90 (was:0)
+    hdr.angle = (90,90,90)
     hdr.axis = (1,2,3)
     hdr.mmm1=  (0,100000,5000)
     hdr.type= 0
     hdr.nspg= 0
     hdr.next= 0
-    hdr.dvid= 0xc0a0  # CHECK - should "priithon" get it own ID !?
-    hdr.blank= 0 #CHECK Hans: add ntst to record time domain offset
+    hdr.dvid= 0xc0a0
+    hdr.blank= 0
     hdr.NumIntegers= 0
     hdr.NumFloats= 0
     hdr.sub= 0
@@ -1078,27 +896,11 @@ def init_simple(hdr, mode, nxOrShape, ny=None, nz=None):
 
 
 
-def initHdrArrayFrom(hdrDest, hdrSrc): #, mode, nxOrShape, ny=None, nz=None):
+def initHdrArrayFrom(hdrDest, hdrSrc):
     '''copy all field of the header
        EXCEPT  shape AND PixelType AND all fields related to extended hdr
     '''
-    
-    '''
-    if ny is nz is None:
-        if len(nxOrShape) == 2:
-            nz,(ny,nx)  = 1, nxOrShape
-        elif len(nxOrShape) == 1:
-            nz,ny,nx  = 1, 1, nxOrShape
-        elif len(nxOrShape) == 3:
-            nz,ny,nx  = nxOrShape
-        else:
-            ny,nx  = nxOrShape[-2:]
-            nz     = N.prod(nxOrShape[:-2])
-            
-    else:
-        nx = nxOrShape
-    '''
-    #  hdrDest.PixelType = .hdr.PixelType
+
     hdrDest.mst = hdrSrc.mst
     hdrDest.m = hdrSrc.m
     hdrDest.d = hdrSrc.d
@@ -1107,12 +909,11 @@ def initHdrArrayFrom(hdrDest, hdrSrc): #, mode, nxOrShape, ny=None, nz=None):
     hdrDest.mmm1 =  hdrSrc.mmm1
     hdrDest.type =  hdrSrc.type
     hdrDest.nspg =  hdrSrc.nspg
-    #   hdrDest.next =  hdrSrc.next
     hdrDest.next =          0
     hdrDest.dvid =  hdrSrc.dvid
     hdrDest.blank = hdrSrc.blank
-    hdrDest.NumIntegers = 0 #hdrSrc.NumIntegers
-    hdrDest.NumFloats =   0 #hdrSrc.NumFloats
+    hdrDest.NumIntegers = 0
+    hdrDest.NumFloats =   0
     hdrDest.sub =         hdrSrc.sub
     hdrDest.zfac =        hdrSrc.zfac
     hdrDest.mm2 = hdrSrc.mm2
@@ -1156,7 +957,7 @@ def setTitle(hdr, s, i=-1):
 
 
 mrcHdrFields = [
-    ('3i4', 'Num'),   # (nx,ny,nSecs)
+    ('3i4', 'Num'),
     ('1i4', 'PixelType'),
     ('3i4', 'mst'),
     ('3i4', 'm'),
@@ -1188,7 +989,7 @@ mrcHdrFields = [
     ('3f4', 'tilt', 'X axis tilt angle (degrees). '),
     ('1i2', 'NumWaves', 'Number of wavelengths.'),
     ('5i2', 'wave', 'Wavelength 1, in nm.'),
-    ('3f4', 'zxy0', 'X origin, in um.'),   # 20050920  ## fixed: order is z,x,y NOT x,y,z
+    ('3f4', 'zxy0', 'X origin, in um.'),
     ('1i4', 'NumTitles', 'Number of titles. Valid numbers are between 0 and 10. '),
     ('10a80', 'title', 'Title 1. 80 characters long. '),
 ]

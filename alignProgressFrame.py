@@ -13,20 +13,26 @@ import controlPanel
 # http://eli.thegreenplace.net/files/prog_code/wx_mpl_dynamic_graph.py.txt
 
 
+## This class provides a window that displays a plot, showing how much 
+# improvement in alignment has been achieved. 
 class AlignProgressFrame(wx.Frame):
     def __init__(self, parent, numWavelengths):
         wx.Frame.__init__(self, parent,
                 style = wx.RESIZE_BORDER | wx.FRAME_TOOL_WINDOW | wx.CAPTION)
+        ## Must implement clearProgressFrame() so we can tell it when we
+        # are destroyed.
         self.parent = parent
         ## How many lines we need to be able to support -- one per wavelength.
         self.numWavelengths = numWavelengths
         ## Data for each wavelength
         self.data = [[] for i in xrange(numWavelengths)]
 
-        ## MatPlotLib Figure instance to hold the plot. The sizing here is
+        ## matplotlib Figure instance to hold the plot. The sizing here is
         # pretty arbitrary as it gets resized by the canvas anyway.
         self.figure = matplotlib.figure.Figure((6, 4), dpi = 100, 
                 facecolor = (1, 1, 1))
+        
+        ## matplotlib Axes instance to display the plot.
         self.axes = self.figure.add_subplot(1, 1, 1)
         self.axes.set_axis_bgcolor('white')
         self.axes.set_title('Alignment progress', size = 12)
@@ -60,9 +66,11 @@ class AlignProgressFrame(wx.Frame):
             self.bestLines.append(line)
             self.axes.add_line(line)
 
+        ## We need to hold onto this sizer so we can resize ourselves when
+        # the close/print buttons are added.
         self.sizer = wx.BoxSizer(wx.VERTICAL)
 
-        ## MatPlotLib canvas object for drawing the plot.
+        ## matplotlib canvas object for drawing the plot.
         self.canvas = matplotlib.backends.backend_wxagg.FigureCanvasWxAgg(
                 self, -1, self.figure)
 
@@ -71,6 +79,9 @@ class AlignProgressFrame(wx.Frame):
         textPanel = wx.Panel(self, -1, style = wx.BORDER_SUNKEN)
         panelSizer = wx.BoxSizer(wx.VERTICAL)
         panelSizer.Add(wx.StaticText(textPanel, -1, "Alignment stats:"))
+
+        ## List of wx StaticText instances displaying the status of each
+        # wavelength.
         self.statusTexts = []
         for wavelength in xrange(self.numWavelengths):
             text = wx.StaticText(textPanel, -1, ' ' * 150)
@@ -80,11 +91,14 @@ class AlignProgressFrame(wx.Frame):
         self.sizer.Add(textPanel, 0, wx.ALL, 3)
 
         buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
-        
+       
+        ## Button to allow the user to save an image of the plot.
         self.saveButton = wx.Button(self, -1, "Save graph")
         self.saveButton.Bind(wx.EVT_BUTTON, self.onSave)
         buttonSizer.Add(self.saveButton, 0, wx.ALL | wx.ALIGN_RIGHT, 5)
         
+        ## Button to destroy this window, since we don't show the normal
+        # close-window button in the menubar.
         self.closeButton = wx.Button(self, -1, "Close window")
         self.closeButton.Bind(wx.EVT_BUTTON, self.onClose)
         buttonSizer.Add(self.closeButton, 0, wx.ALL | wx.ALIGN_RIGHT, 5)

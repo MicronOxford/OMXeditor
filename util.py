@@ -18,7 +18,8 @@ def addLabeledInput(parent, sizer, id = -1, label = '',
     rowSizer.SetMinSize(minSize)
     rowSizer.Add(wx.StaticText(parent, -1, label), 0, wx.TOP, labelHeightAdjustment)
     if helperString != '':
-        addHelperString(parent, rowSizer, helperString)
+        addHelperString(parent, rowSizer, helperString, labelHeightAdjustment, 
+                wx.TOP)
     if shouldRightAlignInput:
         # Add an empty to suck up horizontal space
         rowSizer.Add((10, -1), 1, wx.EXPAND | wx.ALL, 0)
@@ -34,6 +35,13 @@ def addHelperString(parent, sizer, text, border = 0, flags = wx.ALL):
     label.SetForegroundColour((100, 100, 255))
     label.SetToolTipString(text)
     sizer.Add(label, 0, flags, border)
+
+
+## Create a new menu item and insert it into the given menu.
+def addMenuItem(parent, menu, label, action):
+    item = wx.MenuItem(menu, -1, label)
+    parent.Bind(wx.EVT_MENU, action, id = item.GetId())
+    menu.AppendItem(item)
 
 
 ## Save an array as an image. Copied from 
@@ -61,7 +69,10 @@ def saveGLView(filename):
 
 ## Apply a transformation to an input 3D array in ZYX order. Angle rotates
 # each slice, zoom scales each slice (i.e. neither is 3D).
-def transformArray(input, dx, dy, dz, angle, zoom):
+def transformArray(input, dx, dy, dz, angle, zoom, order = 3):
+    # Input angle is in degrees, but scipy's transformations expect angles
+    # in radians.
+    angle = angle * numpy.pi / 180
     cosTheta = numpy.cos(-angle)
     sinTheta = numpy.sin(-angle)
     affineTransform = zoom * numpy.array(
@@ -74,8 +85,10 @@ def transformArray(input, dx, dy, dz, angle, zoom):
     output = numpy.zeros(input.shape)
     for i, slice in enumerate(input):
         output[i] = scipy.ndimage.affine_transform(slice, invertedTransform,
-                offset, output = numpy.float32, cval = slice.min())
-    output = scipy.ndimage.interpolation.shift(output, [dz, dy, dx])
+                offset, output = numpy.float32, cval = slice.min(), 
+                order = order)
+    output = scipy.ndimage.interpolation.shift(output, [dz, dy, dx], 
+            order = order)
 
     return output
 
