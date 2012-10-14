@@ -436,8 +436,8 @@ class DataDoc:
         newHeader = Priithon.Mrc.makeHdrArray()
         Priithon.Mrc.initHdrArrayFrom(newHeader, self.imageHeader)
         newHeader.Num = (croppedShape[4], croppedShape[3], 
-                croppedShape[2] * croppedShape[1] * croppedShape[0])
-        newHeader.NumTimes = self.size[1]
+                croppedShape[2] * len(timepoints) * len(wavelengths))
+        newHeader.NumTimes = len(timepoints)
         newHeader.NumWaves = len(wavelengths)
         # Size of the extended header -- forced to zero for now.
         newHeader.next = 0

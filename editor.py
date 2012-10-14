@@ -22,12 +22,19 @@ class App(wx.App):
             from OpenGL import GLUT
             GLUT.glutInit([])  ## in order to call Y.glutText()
 
+        haveFilesToOpen = False
         for file in sys.argv[1:]:
             # When invoking this program as a standalone bundled app with 
             # py2app, a bunch of junk we don't care about shows up on the 
             # commandline, so only try to open a file if it actually exists.
             if os.path.exists(file):
                 self.frame.openFile(file)
+                haveFilesToOpen = True
+
+        if not haveFilesToOpen:
+            # Instead of just popping up a blank window, show an open-file
+            # dialog.
+            self.frame.OnFileOpen()
 
         return True
 

@@ -598,7 +598,7 @@ def MrcMode2dtype(mode):
                   )
 
     if mode<0 or mode>7:
-        raise "Priism file supports pixeltype 0 to 7 - %d given" % mode
+        raise RuntimeError("Priism file supports pixeltype 0 to 7 - %d given" % mode)
     
     return PixelTypes[ int(mode) ]
 

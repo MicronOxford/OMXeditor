@@ -12,6 +12,7 @@ import alignProgressFrame
 import batchDialog
 import cropControlPanel
 import datadoc
+import diceDialog
 import histogram
 import imageViewer
 import realign
@@ -90,7 +91,7 @@ class ControlPanel(wx.Panel):
         axes = [(4, 3)]
         if self.dataDoc.size[2] > 1:
             # Have more than one Z slice, so show the Z views.
-            axes.extend([(4, 2), (3, 2)])
+            axes.extend([(4, 2), (2, 3)])
         for axesPair in axes:
             self.windows.append(imageViewer.ViewerWindow(self, 
                             axes = axesPair,
@@ -107,7 +108,7 @@ class ControlPanel(wx.Panel):
             self.windows[1].SetPosition((rect[0], rect[1] + rect[3]))
             self.windows[2].SetPosition((rect[0] + rect[2], rect[1]))
             rect = self.windows[2].GetRect()
-            self.parent.SetPosition((rect[0], rect[1] + rect[3]))
+            self.parent.SetPosition((rect[0] + rect[2], rect[1]))
         else:
             self.parent.SetPosition((rect[0] + rect[2], rect[1]))
 
@@ -155,7 +156,7 @@ class ControlPanel(wx.Panel):
         # or take projections of views.
         self.viewsWindow = viewsWindow.ViewsWindow(self, self.dataDoc, 
                 title = 'View settings',
-                style = wx.RESIZE_BORDER | wx.FRAME_TOOL_WINDOW | wx.CAPTION)
+                style = wx.RESIZE_BORDER | wx.CAPTION)
         self.viewsWindow.SetPosition((10, 40))
         self.viewsWindow.Hide()
 
@@ -173,11 +174,10 @@ class ControlPanel(wx.Panel):
             self.Bind(wx.EVT_MENU, lambda event, code = code: self.onKey(code),
                     id = id)
 
-        # Add a debug control to print the correlation coefficient for the 
-        # first two wavelengths.
+        # Auto-rescale the histograms to match the current XY view.
         id = wx.NewId()
         accelTable.append((wx.ACCEL_NORMAL, wx.WXK_NUMPAD_MULTIPLY, id))
-        self.Bind(wx.EVT_MENU, lambda event: self.correlate(), id = id)
+        self.Bind(wx.EVT_MENU, lambda event: self.autoFitHistogramsXY(), id = id)
         table = wx.AcceleratorTable(accelTable)
         self.SetAcceleratorTable(table)
 
@@ -187,6 +187,9 @@ class ControlPanel(wx.Panel):
         ## So we can close our window if necessary.
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
+        ## Get the viewers' min/max values initialized properly.
+        self.setViewerScalings()
+
 
     ## Make the panel for cropping.
     def makeCropPanel(self):
@@ -195,7 +198,7 @@ class ControlPanel(wx.Panel):
         
         self.cropControlPanel = cropControlPanel.CropControlPanel(
                 parent = panel, helpFunc = self.prepHelpText,
-                dimensions = self.dataDoc.size[-3:][::-1],
+                dimensions = self.dataDoc.size[1:][::-1],
                 textChangeCallback = self.updateCrop,
                 toggleCropCallback = self.toggleCrop,
         )
@@ -251,9 +254,10 @@ class ControlPanel(wx.Panel):
             columnSizer.Add(buttonSizer)
 
             color = COLORS_LIST[wavelength]
-            newHistogram = histogram.Histogram(self, panel, wavelength, 
-                    dataSlice[wavelength], color, 
-                    size = (176, -1)
+            newHistogram = histogram.HistogramPanel(panel, 
+                    self.changeHistScale, self.setHelpText, 
+                    wavelength, dataSlice[wavelength], color, 
+                    size = (176, 40)
             )
             self.histograms.append(newHistogram)
             columnSizer.Add(newHistogram)
@@ -318,6 +322,13 @@ class ControlPanel(wx.Panel):
         batchButton.Bind(wx.EVT_BUTTON, lambda event: batchDialog.BatchDialog(
                 self.parent, self))
         rowSizer.Add(batchButton, 0, wx.LEFT | wx.BOTTOM, 10)
+        diceButton = wx.Button(panel, -1, "Dice file")
+        self.prepHelpText(diceButton, "Dice file", 
+                "Cut a file up into several smaller files."
+        )
+        diceButton.Bind(wx.EVT_BUTTON, lambda event: diceDialog.DiceDialog(
+                self.parent, self.dataDoc))
+        rowSizer.Add(diceButton, 0, wx.LEFT | wx.BOTTOM, 10)
 
         sizer.Add(rowSizer)
         panel.SetSizerAndFit(sizer)
@@ -367,6 +378,15 @@ class ControlPanel(wx.Panel):
     def autoFitHistograms(self):
         for histogram in self.histograms:
             histogram.autoFit()
+
+
+    ## Rescale the histograms to fit just the current XY view.
+    def autoFitHistogramsXY(self, event = None):
+        targetCoords = self.dataDoc.getSliceCoords((1, 2))
+        image = self.dataDoc.takeSlice(targetCoords)
+        for wavelength, histogram in enumerate(self.histograms):
+            histogram.autoFitToImage(image[wavelength])
+        wx.CallAfter(self.setViewerScalings)
 
 
     ## Update the viewer min/max scale to match the histogram.
@@ -622,7 +642,6 @@ class ControlPanel(wx.Panel):
         volumes = self.dataDoc.alignAndCrop(
                 timepoints = [self.dataDoc.curViewIndex[1]]
         )
-        print "Got volumes"
         beadCentersByWavelength = []
         for wavelength in xrange(self.dataDoc.numWavelengths):
             print "Processing wavelength",wavelength
@@ -689,7 +708,7 @@ class ControlPanel(wx.Panel):
         
         handle = open(dialog.GetPath(), 'w')
         cropParams = self.cropControlPanel.getParams()
-        for label, value in zip(['minX', 'maxX', 'minY', 'maxY', 'minZ', 'maxZ'], cropParams):
+        for label, value in zip(['minX', 'maxX', 'minY', 'maxY', 'minZ', 'maxZ', 'minT', 'maxT'], cropParams):
             handle.write("crop-%s: %s\n" % (label, value))
         for wavelength in xrange(self.dataDoc.numWavelengths):
             alignParams = self.alignParamsPanels[wavelength].getParamsList()
@@ -709,8 +728,9 @@ class ControlPanel(wx.Panel):
             return
         
         handle = open(dialog.GetPath(), 'r')
-        cropParams = [0] * 6
-        cropLabelOrder = ['minX', 'maxX', 'minY', 'maxY', 'minZ', 'maxZ']
+        cropParams = [1] * 8
+        cropLabelOrder = ['minX', 'maxX', 'minY', 'maxY', 'minZ', 'maxZ', 
+                'minT', 'maxT']
         alignLabelOrder = ['dx', 'dy', 'dz', 'angle', 'zoom']
         alignParams = {}
         for line in handle:
@@ -724,7 +744,9 @@ class ControlPanel(wx.Panel):
                 wavelength = int(wavelength)
                 value = float(value)
                 if wavelength not in alignParams:
-                    alignParams[wavelength] = [0] * 5
+                    alignParams[wavelength] = [0.0] * 5
+                    # Set zoom to 1
+                    alignParams[wavelength][4] = 1.0
                 alignParams[wavelength][alignLabelOrder.index(field)] = value
         handle.close()
         
@@ -749,34 +771,17 @@ class ControlPanel(wx.Panel):
 
 
     ## Re-generate our various views from the data. 
-    # On OSX, we can do this multithreaded, which makes for a nice improvement
-    # in responsiveness. On Linux however, this doesn't work -- we get OpenGL
-    # errors. So we split our behavior at this point based on the value of 
-    # sys.platform.
-    # In either case, we need a lock around this function as a whole so that
+    # We need a lock around this function as a whole so that
     # we don't get concurrent view-update calls.
+    # Can't do this in parallel because the OpenGL calls aren't threadsafe.
     def updateGLGraphics(self, viewsToUpdate = []):
         if not viewsToUpdate:
             viewsToUpdate = self.viewers
 
-        self.displayUpdateLock.acquire()
-
-        if 'linux' in sys.platform:
+        with self.displayUpdateLock:
             # Update each viewer in sequence.
             for viewer in viewsToUpdate:
                 self.updateViewerDisplay(viewer)
-        else:
-            threads = []
-            for viewer in viewsToUpdate:
-                thread = threading.Thread(
-                        target = self.updateViewerDisplay, args = [viewer]
-                )
-                thread.start()
-                threads.append(thread)
-            for thread in threads:
-                thread.join()
-
-        self.displayUpdateLock.release()
 
 
     ## Update the images displayed in the specified viewer by taking an 
@@ -839,7 +844,7 @@ class ControlPanel(wx.Panel):
     # received from one of our viewers when the user drags the crop box around.
     def updateCropboxEdit(self):
         newParams = []
-        for i in xrange(3):
+        for i in xrange(4):
             newParams.append(self.dataDoc.cropMin[4 - i])
             newParams.append(self.dataDoc.cropMax[4 - i])
         self.cropControlPanel.setParams(newParams)
@@ -849,7 +854,7 @@ class ControlPanel(wx.Panel):
     # apply them to the data and our viewers.
     def updateCrop(self, event = None):
         params = self.cropControlPanel.getParams()
-        for i in xrange(3):
+        for i in xrange(4):
             self.dataDoc.cropMin[4 - i] = params[i * 2]
             self.dataDoc.cropMax[4 - i] = params[i * 2 + 1]
         self.updateGLGraphics()
@@ -880,9 +885,12 @@ class ControlPanel(wx.Panel):
         else:
             # Create a new viewer.
             newWindow = imageViewer.ViewerWindow(self, axes, dataDoc = self.dataDoc)
+
             self.windows.append(newWindow)
-            self.viewers.append(newWindow.viewer)
-            self.updateGLGraphics(viewsToUpdate = [newWindow.viewer])
+            viewer = newWindow.viewer
+            self.viewers.append(viewer)
+            viewer.Bind(wx.EVT_MOUSE_EVENTS, self.OnMouse)
+            self.updateGLGraphics(viewsToUpdate = [viewer])
             self.setViewerScalings()
             self.viewsWindow.Raise()
 
@@ -966,7 +974,7 @@ class ControlPanel(wx.Panel):
     ## Adjust the height of our parent so that it can contain all of our
     # wavelength controls.
     def setParentSize(self):
-        self.parent.SetSize((-1, 220 + 111 * self.dataDoc.numWavelengths))
+        self.parent.SetSize((-1, 250 + 111 * self.dataDoc.numWavelengths))
 
 
     ## Generate a stereo pair image of ourself.

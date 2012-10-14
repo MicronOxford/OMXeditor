@@ -20,7 +20,7 @@ class CropControlPanel(wx.Panel):
         self.controls = []
         index = 0
         # Create a 2x3 grid of text controls for setting the crop box volume.
-        for dimension in ['X', 'Y', 'Z']:
+        for dimension in ['X', 'Y', 'Z', 'T']:
             rowSizer = wx.BoxSizer(wx.HORIZONTAL)
             for mode in ['Min', 'Max']:
                 defaultValue = '0'

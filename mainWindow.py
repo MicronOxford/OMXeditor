@@ -52,7 +52,10 @@ class MainWindow(wx.Frame):
                 self.OnExportParams)
         util.addMenuItem(self, fileMenu, '&Batch process...\tCtrl+B',
                 self.OnBatchProcess)
-
+        # As of the Cocoa build of WX, we have to add this manually now.
+        util.addMenuItem(self, fileMenu, '&Quit\tCtrl+Q', 
+                self.OnQuit)
+        
         # Create 'Help' menu with 'About' option. Note that in OSX the About
         # option automatically gets shunted over to the default application 
         # menu because we use ID_ABOUT here. The otherwise-bare Help menu 
@@ -89,6 +92,11 @@ class MainWindow(wx.Frame):
         # opening new files.
         self.origPos = self.GetPosition()
 
+
+    ## Exit the program.
+    def OnQuit(self, event = None):
+        self.Destroy()
+
         
     def CreateNotebook(self):
         self.controlPanelsNotebook = wx.aui.AuiNotebook(self, wx.ID_ANY, style=wx.aui.AUI_NB_DEFAULT_STYLE | wx.aui.AUI_NB_WINDOWLIST_BUTTON | wx.aui.AUI_NB_TAB_FIXED_WIDTH)
@@ -99,7 +107,7 @@ class MainWindow(wx.Frame):
             self.controlPanelsNotebook.SetMeasuringFont(wx.NORMAL_FONT)
         return self.controlPanelsNotebook
 
-    def OnFileOpen(self,event):
+    def OnFileOpen(self,event = None):
         dialog = wx.FileDialog(self, "Please select a file to open", 
                                style = wx.FD_OPEN | wx.FD_MULTIPLE)
         if dialog.ShowModal() == wx.ID_OK:
@@ -206,7 +214,8 @@ class MainWindow(wx.Frame):
                 "allows you to align data across wavelengths, crop out " + 
                 "unnecessary pixels, and view the data from many different " +
                 "perspectives. Alignment and cropping parameters can also " + 
-                "be exported for use in the OMX Processor program.",
+                "be exported for use in the OMX Processor program.\n\n" + 
+                "Copyright 2012 Sedat Lab, UCSF",
                 "About OMX Editor", 
                 wx.ICON_INFORMATION | wx.OK | wx.STAY_ON_TOP).ShowModal()
 

@@ -23,7 +23,7 @@ class ViewerWindow(wx.Frame):
         title = "%s-%s view" % (datadoc.DIMENSION_LABELS[axes[0]], 
                 datadoc.DIMENSION_LABELS[axes[1]])
         wx.Frame.__init__(self, parent, title = title, 
-                style = wx.RESIZE_BORDER | wx.FRAME_TOOL_WINDOW | wx.CAPTION)
+                style = wx.RESIZE_BORDER | wx.CAPTION)
 
         self.viewer = GLViewer(self, viewManager = parent, 
                 axes = axes, **kwargs)
@@ -114,6 +114,9 @@ class GLViewer(wx.glcanvas.GLCanvas):
         ## Whether or not we've done some one-time initialization work.
         self.haveInitedGL = False
 
+        ## Context instance, needed as of WX 2.9.
+        self.context = wx.glcanvas.GLContext(self)
+
         wx.EVT_PAINT(self, self.OnPaint)
         wx.EVT_MOUSE_EVENTS(self, self.OnMouse)
         self.Bind(wx.EVT_KEY_DOWN, self.OnKey)
@@ -121,7 +124,7 @@ class GLViewer(wx.glcanvas.GLCanvas):
         
     def InitGL(self):
         self.w, self.h = self.GetClientSizeTuple()
-        self.SetCurrent()
+        self.SetCurrent(self.context)
         glClearColor(0.3, 0.3, 0.3, 0.0)   ## background color
 
         self.haveInitedGL = True
@@ -144,7 +147,7 @@ class GLViewer(wx.glcanvas.GLCanvas):
 
         self.pic_ny, self.pic_nx = pic_ny,pic_nx
 
-        self.SetCurrent()
+        self.SetCurrent(self.context)
         if len(self.imgList) <= index:
             newImage = image.Image(img, smin, smax)
             self.imgList.append(newImage)
@@ -188,7 +191,7 @@ class GLViewer(wx.glcanvas.GLCanvas):
         if not self.haveInitedGL:
             self.InitGL()
             
-        self.SetCurrent()
+        self.SetCurrent(self.context)
 
         glViewport(0, 0, self.w, self.h)
         glMatrixMode (GL_PROJECTION)
@@ -439,7 +442,8 @@ class GLViewer(wx.glcanvas.GLCanvas):
         if ev.Entering():
             self.SetFocus()
         
-        x, y = ev.m_x,  self.h-ev.m_y
+        x, y = ev.GetPosition()
+        y = self.h - y
         xEff, yEff = int(x / self.scaleX), int(y / self.scaleY)
 
         midButt = ev.MiddleDown() or (ev.LeftDown() and ev.AltDown())
