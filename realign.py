@@ -126,7 +126,9 @@ class SimplexAlign(threading.Thread):
                 result = scipy.optimize.fmin(self.cost3D, 
                         [self.zTransform / Z_MULTIPLIER], 
                         xtol = .00001)[0]
-            self.zTransform = result * Z_MULTIPLIER
+                # gb - put line below inside if/else and added initial zTransform
+                self.zTransform = self.zTransform + result * Z_MULTIPLIER       
+            #self.zTransform = result * Z_MULTIPLIER
         
         transform = transform * STEP_MULTIPLIER + self.guess
         transform = (transform[0], transform[1], self.zTransform, 
