@@ -66,69 +66,8 @@ def saveGLView(filename):
     image.SaveFile(filename, wx.BITMAP_TYPE_PNG)
 
 
-
-## Apply a transformation to an input 3D array in ZYX order. Angle rotates
-# each slice, zoom scales each slice (i.e. neither is 3D).
-def transformArray(input, dx, dy, dz, angle, zoom, order = 3):
-    # Input angle is in degrees, but scipy's transformations expect angles
-    # in radians.
-    angle = angle * numpy.pi / 180
-    cosTheta = numpy.cos(-angle)
-    sinTheta = numpy.sin(-angle)
-    affineTransform = zoom * numpy.array(
-            [[cosTheta, sinTheta], [-sinTheta, cosTheta]])
-
-    invertedTransform = numpy.linalg.inv(affineTransform)    
-    yxCenter = numpy.array(input.shape[1:]) / 2.0
-    offset = -numpy.dot(invertedTransform, yxCenter) + yxCenter
-
-    output = numpy.zeros(input.shape)
-    for i, slice in enumerate(input):
-        output[i] = scipy.ndimage.affine_transform(slice, invertedTransform,
-                offset, output = numpy.float32, cval = slice.min(), 
-                order = order)
-    output = scipy.ndimage.interpolation.shift(output, [dz, dy, dx], 
-            order = order)
-
-    return output
-
-
-## Return the correlation coefficient between two matrices.
-def correlationCoefficient(a, b):
-    aTmp = a - a.mean()
-    bTmp = b - b.mean()
-    numerator = numpy.multiply(aTmp, bTmp).sum()
-    aSquared = numpy.multiply(aTmp, aTmp).sum()
-    bSquared = numpy.multiply(bTmp, bTmp).sum()
-    return numerator / numpy.sqrt(aSquared * bSquared)
-
-
-## Return an estimated offset (as an XY tuple) between two matrices using
-# cross correlation.
-def getOffset(a, b):
-    aFT = numpy.fft.fftn(a)
-    bFT = numpy.fft.fftn(b)
-    correlation = numpy.fft.ifftn(aFT * bFT.conj()).real
-    best = numpy.array(numpy.where(correlation == correlation.max()))
-    # They're in YX order, so flip 'em.
-    coords = best[:,0][::-1]
-    # Negative offsets end up on the wrong side of the image, so 
-    # correct for that.
-    for i, val in enumerate(coords):
-        if val > a.shape[i] / 2:
-            coords[i] -= a.shape[i]
-
-    return coords
-
-
 ## Call the passed-in function in a new thread.
 def callInNewThread(function):
     def wrappedFunc(*args, **kwargs):
         threading.Thread(target = function, args = args, kwargs = kwargs).start()
     return wrappedFunc
-
-
-## Simple utility function that I'm using to avoid having to invoke 
-# precompiled functions in Priithon
-def minMaxMedianStdDev(array):
-    return (numpy.min(array), numpy.max(array), numpy.median(array), numpy.std(array))

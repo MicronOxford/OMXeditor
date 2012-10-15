@@ -81,24 +81,6 @@ class BatchDialog(wx.Dialog):
         if openDialog.ShowModal() != wx.ID_OK:
             return
 
-        # gb, 26/4/21 - comment out save dialog & add _SAL to aligned output instead
-        #saveDialog = wx.DirDialog(self,
-        #        "Please select where you wish to save the files")
-        #if saveDialog.ShowModal() != wx.ID_OK:
-        #    return
-
-        #savePath = os.path.abspath(saveDialog.GetPath())
-        ## Check for overwriting.
-        #openDir = os.path.dirname(openDialog.GetPaths()[0])
-        #if openDir == savePath:
-        #    checkDialog = wx.MessageDialog(self,
-        #            "Are you sure you want to overwrite your files?",
-        #            "Warning",
-        #            wx.CANCEL | wx.OK | wx.STAY_ON_TOP |
-        #            wx.ICON_EXCLAMATION)
-        #    if checkDialog.ShowModal() != wx.ID_OK:
-        #        return
-
         files = openDialog.GetPaths()
 
         progress = wx.ProgressDialog(parent = self,

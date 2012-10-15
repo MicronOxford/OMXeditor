@@ -1,10 +1,7 @@
-import util
-
 import Priithon.Mrc as Mrc
 
 import numpy
 import scipy.ndimage
-import wx
 
 ## Maps dimensional axes to their labels.
 DIMENSION_LABELS = ['Wavelength', 'Time', 'Z', 'Y', 'X']
@@ -143,45 +140,31 @@ class DataDoc:
             return self.takeSliceFromData(data, axes, shouldTransform, order)
         elif projectionAxis in [3, 4]:
             # Projecting through Y or X; just transform the local volume.
-            dialog = wx.ProgressDialog(
-                    title = "Constructing projection",
-                    message = "Please wait...",
-                    maximum = self.size[0],
-                    style = wx.PD_AUTO_HIDE | wx.PD_REMAINING_TIME)
             curTimepoint = self.curViewIndex[1]
             data = []
             for wavelength in xrange(self.size[0]):
-                data.append(util.transformArray(
+                data.append(self.transformArray(
                         self.imageArray[wavelength, curTimepoint], 
                         *self.alignParams[wavelength], 
                         order = 1))
-                dialog.Update(wavelength)
             data = numpy.array(data, dtype = self.dtype)
-            dialog.Destroy()
             return data.max(axis = projectionAxis - 1)
         else:
             # Projecting through time; transform EVERY volume. Ouch.
-            dialog = wx.ProgressDialog(
-                    title = "Constructing projection",
-                    message = "Please wait...",
-                    maximum = self.size[0] * self.size[1],
-                    style = wx.PD_AUTO_HIDE | wx.PD_REMAINING_TIME)
             data = []
             for timepoint in xrange(self.size[1]):
                 timeData = []
                 for wavelength in xrange(self.size[0]):
-                    volume = util.transformArray(
+                    volume = self.transformArray(
                             self.imageArray[wavelength, timepoint], 
                             *self.alignParams[wavelength], 
                             order = 1)
                     timeData.append(volume)
-                    dialog.Update(timepoint * self.size[0] + wavelength)
                 timeData = numpy.array(timeData, dtype = self.dtype)
                 data.append(timeData)
                 
             data = numpy.array(data, dtype = self.dtype)
             data = data.max(axis = 0)
-            dialog.Destroy()
             # Slice through data per our axes parameter.
             slice = [Ellipsis] * 4
             for axis, position in axes.iteritems():
@@ -371,6 +354,31 @@ class DataDoc:
         targetCoords = self.getSliceCoords(perpendicularAxes)
         return self.takeSlice(targetCoords, shouldTransform)
 
+    ## Apply a transformation to an input 3D array in ZYX order. Angle rotates      
+    # each slice, zoom scales each slice (i.e. neither is 3D).                      
+    def transformArray(self, inData, dx, dy, dz, angle, zoom, order = 3):                  
+        # Input angle is in degrees, but scipy's transformations expect angles      
+        # in radians.                                                               
+        angle = angle * numpy.pi / 180                                              
+        cosTheta = numpy.cos(-angle)                                                
+        sinTheta = numpy.sin(-angle)                                                
+        affineTransform = zoom * numpy.array(                                       
+                [[cosTheta, sinTheta], [-sinTheta, cosTheta]])                      
+                                                                                    
+        invertedTransform = numpy.linalg.inv(affineTransform)                       
+        yxCenter = numpy.array(inData.shape[1:]) / 2.0                               
+        offset = -numpy.dot(invertedTransform, yxCenter) + yxCenter                 
+                                                                                    
+        output = numpy.zeros(inData.shape)                                           
+        for i, dataSlice in enumerate(inData):                                           
+            output[i] = scipy.ndimage.affine_transform(dataSlice, invertedTransform,    
+                    offset, output = numpy.float32, cval = dataSlice.min(),             
+                    order = order)                                                  
+        output = scipy.ndimage.interpolation.shift(output, [dz, dy, dx],            
+                order = order)                                                      
+                                                                                    
+        return output
+
 
     ## Generate a 4D transformation matrix based on self.alignParams for
     # each wavelength.
@@ -550,7 +558,7 @@ class DataDoc:
                     dz = 0
                 if dx or dy or dz or angle or zoom != 1:
                     # Transform the volume.
-                    volume = util.transformArray(
+                    volume = self.transformArray(
                             volume, dx, dy, dz, angle, zoom
                     )
                 # Crop to the desired shape.
@@ -647,4 +655,16 @@ class DataDoc:
         for i in range(self.numWavelengths):
             channelWaves.append(self.imageHeader.wave[i])
         return channelWaves
+
+    ## Get all titles
+    def getTitles(self):
+        """
+        Get all titles present in the header.
+            return : titles
+                a list of title strings 
+        """
+        titles = []
+        for i in range(self.imageHeader.NumTitles):
+            titles.append(self.imageHeader.title[i])
+        return titles
 

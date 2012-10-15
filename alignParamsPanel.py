@@ -32,8 +32,8 @@ class AlignParamsPanel(wx.Panel):
         columnSizer = wx.BoxSizer(wx.VERTICAL)
         # Arrange things so that Rotate and Zoom are in one column, and the
         # three translate parameters are in the other.
-        for i, label in enumerate(['X translate', 'Y translate', 'Z translate',
-            'Rotate', 'Zoom']):
+        for i, label in enumerate(['X translate (pixels)', 'Y translate (pixels)', 'Z translate (pixels)',
+            'Rotate (degrees)', 'Zoom']):
             control = util.addLabeledInput(self, columnSizer, label = label,
                     defaultValue = str(params[i]),
                     style = wx.TE_PROCESS_ENTER,
@@ -42,7 +42,7 @@ class AlignParamsPanel(wx.Panel):
             control.Bind(wx.EVT_TEXT_ENTER, lambda event: self.changeCallback())
             action = label.replace('ate', 'ation')
             helpFunc(control, label, 
-                    "Set the %s parameter for alignment of this wavelength" % action)
+                    "Set the %s parameter for alignment of this wavelength relative to the reference wavelength." % action)
             self.controls.append(control)
             if i == 2:
                 # Start a new column

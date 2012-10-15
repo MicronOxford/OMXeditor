@@ -2,6 +2,8 @@ import wx, wx.aui
 import os
 import sys
 
+import splitMergeDialog
+import projResizeDialog
 import batchDialog
 import controlPanel
 import util
@@ -18,7 +20,7 @@ import traceback
 # in the file are handled by the ControlPanel instance.
 class MainWindow(wx.Frame):
     def __init__(self, title, parent=None, id=wx.ID_ANY):
-        wx.Frame.__init__(self, parent, id, title, style=wx.DEFAULT_FRAME_STYLE | wx.BORDER_SUNKEN, size=wx.Size(600, 550))
+        wx.Frame.__init__(self, parent, id, title, style=wx.DEFAULT_FRAME_STYLE | wx.BORDER_SUNKEN, size=wx.Size(625, 540))
 
         self.auiManager = wx.aui.AuiManager()
         self.auiManager.SetManagedWindow(self)
@@ -28,34 +30,42 @@ class MainWindow(wx.Frame):
 
         self.menuBar = wx.MenuBar()
 
-        # Create 'File' menu with various options.
+        # Create 'File' menu with input/output options
         fileMenu = wx.Menu()
         self.menuBar.Append(fileMenu, 'File')
         util.addMenuItem(self, fileMenu, '&Open...\tCtrl+O', self.OnFileOpen)
         util.addMenuItem(self, fileMenu, '&Save\tCtrl+S', self.OnFileSave)
         util.addMenuItem(self, fileMenu, '&Save As...\tCtrl+Shift+S', self.OnFileSaveAs)
-
         fileMenu.AppendSeparator()
-        util.addMenuItem(self, fileMenu, '&Show view controls\tCtrl+T', 
-                self.OnViewControls)
-
-        # We can only generate stereo pairs if Priism is installed.
-        if 'PriismX' in os.listdir(os.getcwd()):
-            util.addMenuItem(self, fileMenu, '&Generate stereo pairs',
-                    self.OnStereoPairs)
-
-        fileMenu.AppendSeparator()
-        util.addMenuItem(self, fileMenu, '&Auto align...', self.OnAutoAlign)
         util.addMenuItem(self, fileMenu, '&Load parameters...\tCtrl+L',
                 self.OnLoadParams)
         util.addMenuItem(self, fileMenu, '&Export parameters...\tCtrl+E',
                 self.OnExportParams)
-        util.addMenuItem(self, fileMenu, '&Batch process...\tCtrl+B',
-                self.OnBatchProcess)
-        # As of the Cocoa build of WX, we have to add this manually now.
+        # As of the Cocoa build of WX, we have to add this manually 
         util.addMenuItem(self, fileMenu, '&Quit\tCtrl+Q', 
                 self.OnQuit)
-        
+
+        # Create 'View' menu with view options
+        viewMenu = wx.Menu()
+        self.menuBar.Append(viewMenu, 'View')
+        viewMenu.AppendSeparator()
+        util.addMenuItem(self, viewMenu, '&Show view controls\tCtrl+T', 
+                self.OnViewControls)
+        # We can only generate stereo pairs if Priism is installed.
+        if 'PriismX' in os.listdir(os.getcwd()):
+            util.addMenuItem(self, viewMenu, '&Generate stereo pairs',
+                    self.OnStereoPairs)
+
+        # Create 'Edit' menu with data editing options
+        # TODO: add Split/Merge and Proj/Resize
+        editMenu = wx.Menu()
+        self.menuBar.Append(editMenu, 'Edit')
+        util.addMenuItem(self, editMenu, '&Auto align...', self.OnAutoAlign)
+        util.addMenuItem(self, editMenu, '&Split/Merge/Reorder...', self.OnSplitMerge)
+        util.addMenuItem(self, editMenu, '&Project/Resize...', self.OnProjResize)
+        util.addMenuItem(self, editMenu, '&Batch process...\tCtrl+B',
+                self.OnBatchProcess)
+
         # Create 'Help' menu with 'About' option. Note that in OSX the About
         # option automatically gets shunted over to the default application 
         # menu because we use ID_ABOUT here. The otherwise-bare Help menu 
@@ -218,7 +228,21 @@ class MainWindow(wx.Frame):
         if self.requireOpenFile():
             self.getCurPanel().autoAlign()
 
+
+    ## Passthrough to the current panel.
+    def OnSplitMerge(self, event):
+        if self.requireOpenFile():
+            splitMergeDialog.SplitMergeDialog(
+                self.getCurPanel(), self.getCurPanel().dataDoc)
+
+
+    ## Passthrough to the current panel.
+    def OnProjResize(self, event):
+        if self.requireOpenFile():
+            projResizeDialog.ProjResizeDialog(
+                self.getCurPanel(), self.getCurPanel().dataDoc)
     
+
     ## Passthrough to the current panel.
     def OnLoadParams(self, event):
         if self.requireOpenFile():
@@ -250,8 +274,8 @@ class MainWindow(wx.Frame):
                 "unnecessary pixels, and view the data from many different " +
                 "perspectives. Alignment and cropping parameters can also " + 
                 "be exported for use in the OMX Processor program.\n\n" + 
-                "Copyright 2012 Sedat Lab, UCSF\n" +
-                "(this version has been modified by Micron Oxford)",
+                "Copyright 2012 Sedat Lab, UCSF.\n" +
+                "(this version has been customized by Micron Oxford)",
                 "About OMX Editor", 
                 wx.ICON_INFORMATION | wx.OK | wx.STAY_ON_TOP).ShowModal()
 
@@ -300,6 +324,16 @@ class MainWindow(wx.Frame):
         controlPanel.setWindowVisibility(True)
         self.statbar.SetFieldsCount(controlPanel.dataDoc.numWavelengths)
 
+    def getDocs(self):
+        """ 
+        Returns an up-to-date list of DataDoc references for all open files.
+        """
+        dataDocs = []
+        for i in range(self.controlPanelsNotebook.GetPageCount()):
+            panel = self.controlPanelsNotebook.GetPage(i)
+            doc = panel.dataDoc
+            dataDocs.append(doc)
+        return dataDocs
 
 
 ## A simple class to handle dragging and dropping files onto the main window.

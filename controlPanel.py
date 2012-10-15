@@ -13,10 +13,11 @@ import batchDialog
 import cropControlPanel
 import datadoc
 import splitMergeDialog
-import SItoWFdialog
+import projResizeDialog
+import mrcEditor
 import histogram
 import imageViewer
-import realign
+import simplexAlign
 import stereoPairs
 import util
 import viewsWindow
@@ -77,8 +78,10 @@ class ControlPanel(wx.Panel):
 
         self.shouldProject = False
         ## Contains all the information on the displayed image
-        #self.dataDoc = datadoc.DataDoc(imageData)
         self.dataDoc = imageDoc
+        # store an Edits instance with an up-to-date DataDoc list
+        self.mrcEditor = mrcEditor.MrcEditor(parent.getDocs()+[imageDoc])
+        #self.edit.printDocList()
 
         ## Which wavelengths are controlled by the mouse
         self.mouseControlWavelengths = [False] * self.dataDoc.numWavelengths
@@ -112,18 +115,18 @@ class ControlPanel(wx.Panel):
                     )
             )
 
-        # Adjust window positions.
+        # Adjust window positions - parent moved right for new window0
         base = self.parent.origPos
-        self.windows[0].SetPosition(base)
+        self.windows[0].SetPosition( base )
         rect = self.windows[0].GetRect()
+        self.windows[0].SetPosition( (rect[0]-rect[2], rect[1]) )
         if len(self.windows) > 1:
             # We have the XZ and YZ views, so we need to position them too.
-            self.windows[1].SetPosition((rect[0], rect[1] + rect[3]))
-            self.windows[2].SetPosition((rect[0] + rect[2], rect[1]))
-            rect = self.windows[2].GetRect()
-            self.parent.SetPosition((rect[0] + rect[2], rect[1]))
-        else:
-            self.parent.SetPosition((rect[0] + rect[2], rect[1]))
+            self.windows[1].SetPosition( (rect[0]-rect[2], rect[1] + rect[3]) )
+            rect2 = self.windows[2].GetRect()
+            self.windows[2].SetPosition( (rect[0]-rect[2]-rect2[2], rect[1]) )
+        # move the parent last because the other windows move with it (Mac)
+        self.parent.SetPosition( (rect[0]+rect[2], rect[1]) )
 
         self.setParentSize()
 
@@ -259,14 +262,6 @@ class ControlPanel(wx.Panel):
                     lambda event, wavelength = wavelength: self.toggleWavelengthVisibility(wavelength))
             buttonSizer.Add(toggleButton, 0, wx.ALL, 3)
 
-            #swapButton = wx.ToggleButton(panel, -1, label = "Swap")
-            #self.prepHelpText(swapButton, "Swap parameters", 
-            #        "Click on two swap buttons to exchange alignment " + 
-            #        "parameters between the two corresponding wavelengths.")
-            #swapButton.Bind(wx.EVT_TOGGLEBUTTON, self.onSwapAlignParams)
-            #self.alignSwapButtons.append(swapButton)
-            #buttonSizer.Add(swapButton, 0, wx.ALL, 3)
-            
             columnSizer.Add(buttonSizer)
 
             # gb Oct2012 - re-map colors for this channel to something more meaningful
@@ -316,16 +311,16 @@ class ControlPanel(wx.Panel):
         autoAlignButton.Bind(wx.EVT_BUTTON, self.autoAlign)
         rowSizer.Add(autoAlignButton, 0, wx.LEFT | wx.BOTTOM, 10)
 
-        exportButton = wx.Button(panel, -1, "Save params")
-        self.prepHelpText(exportButton, "Save parameters",
+        exportButton = wx.Button(panel, -1, "Export param")
+        self.prepHelpText(exportButton, "Export parameters",
                 "Generate a file that contains the alignment and cropping " +
                 "parameters for this file, so that they may be loaded " +
-                "later."
+                "later (NB. alignment parameters saved in Microns)."
         )
         exportButton.Bind(wx.EVT_BUTTON, self.exportParameters)
         rowSizer.Add(exportButton, 0, wx.LEFT | wx.BOTTOM, 10)
 
-        loadButton = wx.Button(panel, -1, "Load params")
+        loadButton = wx.Button(panel, -1, "Load param")
         self.prepHelpText(loadButton, "Load parameters",
                 "Load a previously-generated file describing how to crop " +
                 "and align data."
@@ -346,18 +341,18 @@ class ControlPanel(wx.Panel):
                 "Split, Merge or Re-order data - merge not yet implemented."
         )
         splitMergeButton.Bind(wx.EVT_BUTTON, lambda event: splitMergeDialog.SplitMergeDialog(
-                self.parent, self.dataDoc))
+                self, self.dataDoc))
         rowSizer.Add(splitMergeButton, 0, wx.LEFT | wx.BOTTOM, 10)
-        SItoWFbutton = wx.Button(panel, -1, "SItoWF")
-        self.prepHelpText(SItoWFbutton, "SI to Wide-Field", 
-                "When finished, will average phases & angles of raw SI data " +
-                "and rescale 2x to give a pseudo-wide-field image with the" +
-                "same pixel dimensions as the SIR reconstructed data " +
-                "- not yet implemented."
+        projResizeButton = wx.Button(panel, -1, "Proj/Resize")
+        self.prepHelpText(projResizeButton, "Project/Resize data", 
+                "When finished, will allow averaging of phases & angles of " + 
+                "raw SI data, and/or rescaling of the result. This should " +
+                "facilitate merging and comparison of SI and wide-field " +
+                "data for a given sample. Not yet implemented!"
         )
-        SItoWFbutton.Bind(wx.EVT_BUTTON, lambda event: SItoWFdialog.SItoWFdialog(
-                self.parent, self.dataDoc))
-        rowSizer.Add(SItoWFbutton, 0, wx.LEFT | wx.BOTTOM, 10)
+        projResizeButton.Bind(wx.EVT_BUTTON, lambda event: projResizeDialog.ProjResizeDialog(
+                self, self.dataDoc))
+        rowSizer.Add(projResizeButton, 0, wx.LEFT | wx.BOTTOM, 10)
 
         sizer.Add(rowSizer)
         panel.SetSizerAndFit(sizer)
@@ -424,30 +419,6 @@ class ControlPanel(wx.Panel):
             minVal, maxVal = self.histograms[wavelength].getMinMax()
             for viewer in self.viewers:
                 viewer.changeHistScale(wavelength, minVal, maxVal)
-
-
-    ## This function is invoked when the user clicks one of the "Swap" 
-    # buttons for the alignment parameters. If two swap buttons are both
-    # active, then their parameters are swapped.
-    #def onSwapAlignParams(self, event):
-    #    firstButton = event.GetEventObject()
-    #    if not firstButton.GetValue():
-    #        return
-    #    firstIndex = self.alignSwapButtons.index(firstButton)
-    #    for i, button in enumerate(self.alignSwapButtons):
-    #        if button is not firstButton and button.GetValue():
-    #            # Found two active buttons; deactivate them both and swap 
-    #            # their parameters.
-    #            firstButton.SetValue(False)
-    #            button.SetValue(False)
-    #            firstParams = self.alignParamsPanels[firstIndex].getParamsList()
-    #            secondParams = self.alignParamsPanels[i].getParamsList()
-    #            self.alignParamsPanels[firstIndex].setParams(secondParams)
-    #            self.alignParamsPanels[i].setParams(firstParams)
-    #            self.setAlignParams(firstIndex)
-    #            self.setAlignParams(i)
-    #            return
-    #    # Only one button active; do nothing.
 
 
     ## This function is invoked when the user changes the alignment parameters.
@@ -604,7 +575,7 @@ class ControlPanel(wx.Panel):
                     shouldAdjustGuess = False
                     break
 
-            aligner = realign.SimplexAlign(self, referenceData, i, guess,
+            aligner = simplexAlign.SimplexAlign(self, referenceData, i, guess,
                     shouldAdjustGuess = shouldAdjustGuess)
 
 
@@ -1019,25 +990,6 @@ class ControlPanel(wx.Panel):
         return
 
 
-    ## Simple debugging function to print out the correlation coefficient for
-    # the first two wavelengths. This also makes a convenient hook for other
-    # debugging logic.
-    def correlate(self):
-        data = self.dataDoc.takeDefaultSlice((1, 2))
-        first = data[0].astype(numpy.float64)
-        first /= first.max()
-        second = data[1].astype(numpy.float64)
-        second /= second.max()
-        print "Correlation is",util.correlationCoefficient(first, second)
-        # Calculate phase correlation for comparison:
-#        fa = numpy.fft.fftn(data[0])
-#        fb = numpy.fft.fftn(data[1])
-#        r = (fa * fb.conj())
-#        r = r / numpy.abs(r)
-#        r = numpy.fft.ifftn(r).real
-#        util.imsave("phase.png", r)
-#        self.checkAlignment()
-
     # gb Oct2012 - convert wavelength to approx. RGB color
     def waveToRGB(self, wave):
         """
@@ -1056,7 +1008,7 @@ class ControlPanel(wx.Panel):
             670<=wave : (0.5,0,0)
             }[1]
         #  TODO: perhaps use colors closer to fluorochrome *names*
-        #    rather than actual real emmission colors
+        #    rather than actual real emmission colors?
         return RGBtuple
 
 

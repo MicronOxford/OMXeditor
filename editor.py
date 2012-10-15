@@ -13,7 +13,7 @@ import mainWindow
 class App(wx.App):
     def OnInit(self):
         import sys
-        self.frame = mainWindow.MainWindow('OMX Editor mv2.3')
+        self.frame = mainWindow.MainWindow('OMX Editor mv2.4')
 
         self.frame.Show()
         self.SetTopWindow(self.frame)

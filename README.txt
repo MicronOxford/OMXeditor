@@ -34,37 +34,60 @@ since then. Very little of the original code remains.
 -------------------------------------------------------------------------------
 
 
-Modifications made by graemeball@googlemail.com
-===============================================
-
-2012
-~~~~
-* changed save convention from new folder/ to new file with three-letter code
-* fixed realign.py for correct application of Z-alignment correction
-* removed "Preview crop" & "Swap" buttons from cropControlPanel.py 
-* some renaming & re-tooling:-
-** "wavelengths" ranmed to channels, and "Crop controls" to "Crop 
-** Dice Dialog => Edit Dims dialog 
-** new SItoWF dialog
-
-
-TODO
-----
-* test: whether alignment parameters apply across different image sizes
-* test: effect of edges, and max alignment search window
-* new feature: average phases and angles for pseudo-widefield (+resize 2x) _EWF
-* alter feature: "Swap" buttons confusing - create a better interface for 
-    choosing dimension order of image versus parameter file (see below)
-* alter feature: "Dice file" - "Edit Dims" with more options would be 
-    more useful - i.e. re-order, split, & merge channels: _ERE, _ESP_CHX, _EMG
-* refactor - remove obsolete diceDialog.py
-* refactor / new feature: ensure all operations can be run headless w/o GUI
-** refactor datadoc to remove all wx GUI stuff
-* refactor: datadoc and MRC, remove other unnecessary Priithon
-
-Edit Dims design
-~~~~~~~~~~~~~~~~
-* separate Re-order, Split and Merge operations to keep design simple
-* Re-order: old to new dimension mapping (old fixed, specify new)
-* Split: boxes for Channel, Angle, Time ranges
-* Join: up to 4 files in the order chosen (one or more channels/file)
+Modifications made by graemeball@googlemail.com (Micron Oxford)                 
+===============================================================                 
+                                                                                
+2012                                                                            
+----                                                                            
+                                                                                
+Bufixes                                                                         
+~~~~~~~                                                                         
+* fixed realign.py for correct application of Z-alignment correction            
+                                                                                
+Customization                                                                   
+~~~~~~~~~~~~~                                                                   
+* some renaming & re-tooling:-                                                  
+** removed "Preview crop" & "Swap" buttons from cropControlPanel.py             
+** "wavelengths" renamed to channels, and "Crop controls" to "Crop parameters"  
+* changed save convention from new folder/ to new file with three-letter code:- 
+** _EAL = Editor ALigned                                                        
+** _ECR = Editor CRopped                                                        
+** _EPJ = Editor ProJected (SI raw => "widefield" by averaging phases/angles)   
+** _ERS = Editor ReSized                                                        
+** _ERO = Editor ReOrdered                                                      
+** _EMG = Editor MerGed (i.e. from previously split channels)                   
+* splitting time-points/channels saves files in a new folder (FileRoot_ESP):-   
+** FileRoot_C{c}.ext where c=channel number                                     
+** FileRoot_T{t}.ext where t=timepoint                                          
+                                                                                
+Feature additions                                                               
+~~~~~~~~~~~~~~~~~                                                               
+* projection SI raw -> widefield                                                
+* resizing/resampling                                                           
+* channel re-ordering                                                           
+* channel merging                                                               
+* channel splitting                                                             
+                                                                                
+TODO                                                                            
+----                                                                            
+* test: alignment correctness and perfomance                                    
+** do alignment parameters apply across different image sizes?                  
+** effect of edges, and max alignment search window?                            
+** reproducibility / accuracy?                                                  
+* test: metadata population and copying                                         
+** is all metadata updated upon channel swap?                                   
+* test: scalability                                                             
+** size at which speed and/or memory become limiting?                           
+* bugfix: YZ view panel controls / projection not working properly
+* refactor: move non-interactive editing procedures to mrcEditor.py where possible  
+* refactor: remove all wx GUI stuff from datadoc                                
+* refactor: merge datadoc and MRC, remove other unnecessary Priithon            
+* refactor: add docstrings and try to improve adherence to conventions          
+* new feature:non-interactive editing operations to be run headless w/o GUI     
+* new feature: split/merge and proj/resize features (TODO: add to mainWindow)   
+* new feature: average phases+angles for pseudo-widefield (+resizing)           
+* new feature: add information about operations carried out to MRC title fields 
+* optimization: auto-alignment speed                                            
+** multithread => multiprocess?                                                 
+** FFT pre-align? (and/or search constraints?)                                  
+** downsampling? (resampling? bit-depth?)

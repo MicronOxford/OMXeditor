@@ -51,7 +51,7 @@ class SimplexAlign(threading.Thread):
         # Improve the guess by doing a cross correlation.
         if shouldAdjustGuess:
             movingData = self.parent.getFilteredData(self.index)
-            dx, dy = util.getOffset(self.referenceData, movingData)
+            dx, dy = self.getOffset(self.referenceData, movingData)
 
             self.guess[0] += dx
             self.guess[1] += dy
@@ -60,12 +60,7 @@ class SimplexAlign(threading.Thread):
         self.zTransform = self.guess[2]
         self.guess = self.guess[:2] + self.guess[3:]
 
-        ## How close we were to perfect alignment at the start of optimization,
-        # so we can measure overall improvement.
         self.startingCost = None
-        ## How close we currently are to perfect alignment. Note that perfect
-        # alignment is a practical impossibility since the actual pixel data
-        # between two wavelengths will differ in all non-artificial cases.
         self.currentCost = None
 
         ## This lock is used whenever we need to interact with our parent to
@@ -153,7 +148,7 @@ class SimplexAlign(threading.Thread):
                 transform[2], transform[3])
         self.parent.dataDoc.alignParams[self.index] = fullTransform
         transformedMatrix = self.parent.getFilteredData(self.index)
-        cost = 1 - util.correlationCoefficient(transformedMatrix, self.referenceData)
+        cost = 1 - self.correlationCoefficient(transformedMatrix, self.referenceData)
         if self.startingCost is None:
             self.startingCost = cost
         self.currentCost = cost
@@ -169,9 +164,37 @@ class SimplexAlign(threading.Thread):
         shiftedVolume = scipy.ndimage.interpolation.shift(
                 self.movingVolume, [zTransform, 0, 0], 
                 order = 1, cval = self.parent.dataDoc.averages[self.index])
-        cost = 1 - util.correlationCoefficient(shiftedVolume, 
+        cost = 1 - self.correlationCoefficient(shiftedVolume, 
                 self.referenceVolume)
         self.currentCost = cost
         print "Current Z cost for",self.index,"is",cost,"for offset",zTransform
         self.parent.updateAutoAlign(self.startingCost, self.currentCost, self.index)
         return cost
+
+
+    ## Return the correlation coefficient between two matrices.                     
+    def correlationCoefficient(self, a, b):
+        aTmp = a - a.mean()
+        bTmp = b - b.mean()
+        numerator = numpy.multiply(aTmp, bTmp).sum()
+        aSquared = numpy.multiply(aTmp, aTmp).sum()
+        bSquared = numpy.multiply(bTmp, bTmp).sum()
+        return numerator / numpy.sqrt(aSquared * bSquared)
+
+
+    ## Return an estimated offset (as an XY tuple) between two matrices using       
+    # cross correlation.                                                            
+    def getOffset(self, a, b):                                                            
+        aFT = numpy.fft.fftn(a)                                                     
+        bFT = numpy.fft.fftn(b)                                                     
+        correlation = numpy.fft.ifftn(aFT * bFT.conj()).real                        
+        best = numpy.array(numpy.where(correlation == correlation.max()))           
+        # They're in YX order, so flip 'em.                                         
+        coords = best[:,0][::-1]                                                    
+        # Negative offsets end up on the wrong side of the image, so                
+        # correct for that.                                                         
+        for i, val in enumerate(coords):                                            
+            if val > a.shape[i] / 2:                                                
+                coords[i] -= a.shape[i]                                             
+                                                                                    
+        return coords

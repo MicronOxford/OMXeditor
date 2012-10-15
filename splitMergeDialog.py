@@ -11,8 +11,10 @@ class SplitMergeDialog(wx.Dialog):
     This dialog will enable re-ordering, splitting, & merging of different 
     dimensions - currently it allows a user to cut up a file into multiple 
     sub-files, each of which contain a subset of the original file's data.                           
-    Based on the original DiceDialog of Chris.
     """
+    # loosely based on the original DiceDialog of Chris.
+    # TODO: try/except to handle failed editing tasks 
+    #       (input checking should be done by mrcEditor.py)
     
     def __init__(
             self, parent, dataDoc, size = wx.DefaultSize, 
@@ -21,6 +23,8 @@ class SplitMergeDialog(wx.Dialog):
             ):
         wx.Dialog.__init__(self, parent, -1, "Split/Merge", pos, size, style)
 
+        self.mrcEditor = parent.mrcEditor
+        self.dataDocs = self.mrcEditor.dataDocs
         self.dataDoc = dataDoc
 
         mainSizer = wx.BoxSizer(wx.ALIGN_CENTER)
@@ -37,12 +41,25 @@ class SplitMergeDialog(wx.Dialog):
         columnSizer = wx.BoxSizer(wx.VERTICAL) 
 
         # TODO: sizer containing 3xcomboBox for all open files (for merge)
-        rowSizer = wx.BoxSizer(wx.HORIZONTAL)                                  
+        rowSizer = wx.BoxSizer(wx.HORIZONTAL)
+        docFiles = ["None"]
+        for doc in self.dataDocs:
+            docFiles.append(doc.filePath)
         sectionTitle = wx.StaticText(self, -1, "Specify datasets to Merge:")
         columnSizer.Add(sectionTitle)
         columnSizer.AddSpacer(10)
-        TODOtext = wx.StaticText(self, -1, "    TODO: add comboBoxes here")
-        columnSizer.Add(TODOtext)
+        cb1 = wx.ComboBox(self, choices=docFiles, style=wx.CB_READONLY)
+        cb1.Bind(wx.EVT_COMBOBOX, self.OnSelect1)
+        columnSizer.Add(cb1)
+        cb2 = wx.ComboBox(self, choices=docFiles, style=wx.CB_READONLY)
+        cb2.Bind(wx.EVT_COMBOBOX, self.OnSelect2)
+        columnSizer.Add(cb2)
+        cb3 = wx.ComboBox(self, choices=docFiles, style=wx.CB_READONLY)
+        cb3.Bind(wx.EVT_COMBOBOX, self.OnSelect3)
+        columnSizer.Add(cb3)
+        # list of docFiles (paths) below used to interpret ComboBox choices
+        self.docFiles = docFiles
+        self.cbSelection = ["None", "None", "None"]
         columnSizer.Add(rowSizer)
         columnSizer.AddSpacer(20)
         
@@ -151,11 +168,15 @@ class SplitMergeDialog(wx.Dialog):
         else:
             #targetFilename = os.path.join(savePath,
             #        os.path.basename(self.dataDoc.filePath) + '_ERE')
-            pathBase = os.path.splitext(fullImagePath)[0]                                
-            tags = '_ERE'
-            fileExt = ".dv"                                                         
-            targetFilename = pathBase + tags + fileExt 
-            doc.saveSelection(savePath = targetFilename, wavelengths = newMap)
+            success = self.mrcEditor.reorderChannels(fullImagePath, doc, newMap)
+            if success:
+                wx.MessageBox('Re-ordering finished', 
+                    'Result with _ERO tag in name.', 
+                    wx.OK | wx.ICON_INFORMATION)
+            else:
+                wx.MessageBox('Re-ordering failed',                           
+                    'No result saved.',                            
+                    wx.OK | wx.ICON_INFORMATION)
 
         self.Hide()
         self.Destroy()
@@ -186,9 +207,32 @@ class SplitMergeDialog(wx.Dialog):
         """
         Take selected image docs and merge channels (if possible).
         """
-        print 'dataset merge not yet implemented'
+        # TODO - FIXME - currently using all open docs - need dialog selection
+        docsToMerge = []
+        print "Not yet implemented - these files selected to merge:-"
+        for cbItem in self.cbSelection:
+            filePath = cbItem
+            if filePath != "None":
+                print filePath
+        resultDoc = self.mrcEditor.mergeChannels(docsToMerge)
+        print resultDoc
+        # TODO: default should be save to ???_EMG.xxx based on 1st doc ???.xxx
         self.Hide()
         self.Destroy()
+
+    # Handle ComboBox selections - TODO - remove the Ugly repetition below
+    def OnSelect1(self, e):
+        """Update this comboBox selection."""
+        self.cbSelection[1] = e.GetString()
+
+    def OnSelect2(self, e):
+        """Update this comboBox selection."""
+        self.cbSelection[2] = e.GetString()
+
+    def OnSelect3(self, e):
+        """Update this comboBox selection."""
+        self.cbSelection[3] = e.GetString()
+
 
     def OnCancel(self, event):
         self.Hide()
