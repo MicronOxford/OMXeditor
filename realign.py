@@ -127,7 +127,7 @@ class SimplexAlign(threading.Thread):
                         [self.zTransform / Z_MULTIPLIER], 
                         xtol = .00001)[0]
                 # gb - put line below inside if/else and added initial zTransform
-                self.zTransform = self.zTransform + result * Z_MULTIPLIER       
+                self.zTransform = self.zTransform + result * Z_MULTIPLIER
             #self.zTransform = result * Z_MULTIPLIER
         
         transform = transform * STEP_MULTIPLIER + self.guess

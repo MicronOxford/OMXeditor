@@ -1,7 +1,5 @@
 import datadoc
 
-from Priithon import Mrc
-
 import numpy
 import os
 import time
@@ -83,22 +81,23 @@ class BatchDialog(wx.Dialog):
         if openDialog.ShowModal() != wx.ID_OK:
             return
 
-        saveDialog = wx.DirDialog(self,
-                "Please select where you wish to save the files")
-        if saveDialog.ShowModal() != wx.ID_OK:
-            return
+        # gb, 26/4/21 - comment out save dialog & add _SAL to aligned output instead
+        #saveDialog = wx.DirDialog(self,
+        #        "Please select where you wish to save the files")
+        #if saveDialog.ShowModal() != wx.ID_OK:
+        #    return
 
-        savePath = os.path.abspath(saveDialog.GetPath())
-        # Check for overwriting.
-        openDir = os.path.dirname(openDialog.GetPaths()[0])
-        if openDir == savePath:
-            checkDialog = wx.MessageDialog(self,
-                    "Are you sure you want to overwrite your files?",
-                    "Warning",
-                    wx.CANCEL | wx.OK | wx.STAY_ON_TOP |
-                    wx.ICON_EXCLAMATION)
-            if checkDialog.ShowModal() != wx.ID_OK:
-                return
+        #savePath = os.path.abspath(saveDialog.GetPath())
+        ## Check for overwriting.
+        #openDir = os.path.dirname(openDialog.GetPaths()[0])
+        #if openDir == savePath:
+        #    checkDialog = wx.MessageDialog(self,
+        #            "Are you sure you want to overwrite your files?",
+        #            "Warning",
+        #            wx.CANCEL | wx.OK | wx.STAY_ON_TOP |
+        #            wx.ICON_EXCLAMATION)
+        #    if checkDialog.ShowModal() != wx.ID_OK:
+        #        return
 
         files = openDialog.GetPaths()
 
@@ -111,8 +110,7 @@ class BatchDialog(wx.Dialog):
         progress.Show()
         for i, file in enumerate(files):
             progress.Update(i, os.path.basename(file))
-            image = Mrc.bindFile(file)
-            doc = datadoc.DataDoc(image)
+            doc = datadoc.DataDoc(file)
             if self.shouldCrop.GetValue():
                 # Scale the cropbox's position in Z so that it's the same 
                 # proportionate distance from the top of the Z stack as the 
@@ -133,7 +131,18 @@ class BatchDialog(wx.Dialog):
                     doc.alignParams[j] = row
                     if j == len(doc.alignParams) - 1:
                         break
-            targetFilename = os.path.join(savePath, os.path.basename(file))
+            # gb, 26/4/12 - add _SAL
+            #targetFilename = os.path.join(savePath, os.path.basename(file))
+            froot,fext = os.path.splitext(file)
+            # gb, Oct2012 - filename depending on operations performed
+            tag = "";
+            if self.shouldCrop.GetValue():
+                tag += "_ECR"
+            if self.shouldAlign.GetValue():
+                tag += "_EAL"
+            # TODO: always use .dv fext?
+            targetFilename = froot + tag + fext
+            print targetFilename
             doc.alignAndCrop(savePath = targetFilename)
         progress.Update(len(files), "All done!")
 

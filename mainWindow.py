@@ -7,7 +7,7 @@ import controlPanel
 import util
 
 import numpy
-from Priithon import Mrc
+import datadoc
 import traceback
 
 
@@ -121,21 +121,56 @@ class MainWindow(wx.Frame):
 
         pageIndex = self.controlPanelsNotebook.GetSelection()
 
-        targetPath = curPanel.getFilePath()
-        permission = wx.MessageBox("Overwrite %s?" % targetPath, 
-                "Please confirm", 
-                style = wx.OK | wx.CANCEL)
+        # gb, Oct2012 - change save path if we have align or crop params
+        currPath = curPanel.getFilePath()
+        targetPath = self.updatePath(currPath,curPanel)
+        permission = wx.CANCEL
+        if targetPath == currPath:
+            permission = wx.MessageBox("Overwrite %s?" % targetPath, 
+                 "Please confirm", 
+                 style = wx.OK | wx.CANCEL)
+        else:
+            permission = wx.OK
         if permission != wx.OK:
             return
                 
         curPanel.dataDoc.alignAndCrop(savePath = targetPath)
 
-        im_to_edit = Mrc.bindFile(targetPath)
+        doc_to_edit = datadoc.DataDoc(targetPath)
 
         self.controlPanelsNotebook.DeletePage(pageIndex)
         self.controlPanelsNotebook.InsertPage(pageIndex, 
-                controlPanel.ControlPanel(self, im_to_edit),
+                controlPanel.ControlPanel(self, doc_to_edit),
                 os.path.basename(targetPath), select=True)
+
+    # gb, Oct2012 - check if crop/align params non-default - update save name
+    def updatePath(self,currPath,curPanel):
+        """
+        Check whether Crop or Align parameters imply changes -
+        if so, modify save path accordingly (_ECR=cropped, _EAL=algined).
+        """
+        # use existing file root, and .dv extension
+        pathBase = os.path.splitext(currPath)[0]
+        fileExt = ".dv"
+        tags = ""
+        doc = self.getCurPanel().dataDoc
+        # 1. Will any cropping take place?
+        startMin = numpy.array([0, 0, 0, 0, 0], numpy.int32)
+        startMax = numpy.array(doc.size, numpy.int32)
+        if (set(doc.cropMin) != set(startMin)) or \
+            (set(doc.cropMax) != set(startMax)):
+            tags = tags + "_ECR"
+        # 2. Will any alignment take place?
+        alignParams = doc.alignParams
+        for wavelength in xrange(doc.numWavelengths):   
+            dx, dy, dz, angle, zoom = alignParams[wavelength]          
+            if dz and self.size[2] == 1:                                    
+                # Chris HACK: no Z translate in 2D files.
+                dz = 0                                                      
+            if dx or dy or dz or angle or zoom != 1:                        
+                tags = tags + "_EAL"
+                break
+        return pathBase + tags + fileExt
 
 
     def OnFileSaveAs(self,event):
@@ -152,9 +187,9 @@ class MainWindow(wx.Frame):
         if fd.ShowModal() == wx.ID_OK:
             targetPath = fd.GetPath()
             curPanel.dataDoc.alignAndCrop(savePath = targetPath)
-            im_to_edit = Mrc.bindFile(targetPath)
+            doc_to_edit = datadoc.DataDoc(targetPath)
             self.controlPanelsNotebook.AddPage(
-                    controlPanel.ControlPanel(self, im_to_edit),
+                    controlPanel.ControlPanel(self, doc_to_edit),
                     os.path.basename(targetPath), select=True)
 
 
@@ -215,7 +250,8 @@ class MainWindow(wx.Frame):
                 "unnecessary pixels, and view the data from many different " +
                 "perspectives. Alignment and cropping parameters can also " + 
                 "be exported for use in the OMX Processor program.\n\n" + 
-                "Copyright 2012 Sedat Lab, UCSF",
+                "Copyright 2012 Sedat Lab, UCSF\n" +
+                "(this version has been modified by Micron Oxford)",
                 "About OMX Editor", 
                 wx.ICON_INFORMATION | wx.OK | wx.STAY_ON_TOP).ShowModal()
 
@@ -239,14 +275,15 @@ class MainWindow(wx.Frame):
             return # Do nothing for directories
         else:
             try:
-                image_to_edit = Mrc.bindFile(filename)
+                doc_to_edit = datadoc.DataDoc(filename) 
             except Exception, e:
                 wx.MessageDialog(None, 
                         "Failed to open file: %s\n\n%s" % (e, traceback.format_exc()), 
                         "Error", wx.OK).ShowModal()
                 return
 
-            newPanel = controlPanel.ControlPanel(self, image_to_edit)
+            #newPanel = controlPanel.ControlPanel(self, image_to_edit)
+            newPanel = controlPanel.ControlPanel(self, doc_to_edit)
             self.controlPanelsNotebook.AddPage(
                     newPanel,
                     os.path.basename(filename), select=True)

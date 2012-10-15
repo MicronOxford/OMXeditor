@@ -16,7 +16,7 @@ class CropControlPanel(wx.Panel):
         wx.Panel.__init__(self, parent, *args, **kwargs)
         
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(wx.StaticText(self, -1, "Crop controls:"))
+        sizer.Add(wx.StaticText(self, -1, "Crop parameters:"))
         self.controls = []
         index = 0
         # Create a 2x3 grid of text controls for setting the crop box volume.
@@ -47,13 +47,13 @@ class CropControlPanel(wx.Panel):
             rowSizer = wx.BoxSizer(wx.HORIZONTAL)
         
         # Add a preview button.
-        previewButton = wx.ToggleButton(self, -1, "Preview crop")
-        helpFunc(previewButton, "Preview crop", 
-                "Shows what the crop will look like when applied to the " + 
-                "image. You must save the image to actually apply the crop."
-        )
-        previewButton.Bind(wx.EVT_TOGGLEBUTTON, lambda event: toggleCropCallback())
-        sizer.Add(previewButton)
+        #previewButton = wx.ToggleButton(self, -1, "Preview crop")
+        #helpFunc(previewButton, "Preview crop", 
+        #        "Shows what the crop will look like when applied to the " + 
+        #        "image. You must save the image to actually apply the crop."
+        #)
+        #previewButton.Bind(wx.EVT_TOGGLEBUTTON, lambda event: toggleCropCallback())
+        #sizer.Add(previewButton)
 
         self.SetSizerAndFit(sizer)
 

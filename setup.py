@@ -8,8 +8,8 @@ Usage:
 from setuptools import setup
 
 APP = ['editor.py']
-DATA_FILES = ['Priithon']
-OPTIONS = {}
+DATA_FILES = []
+OPTIONS = {'argv_emulation': True}
 
 setup(
     app=APP,

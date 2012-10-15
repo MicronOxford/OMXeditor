@@ -1,6 +1,6 @@
 import util
 
-import Priithon.Mrc
+import Priithon.Mrc as Mrc
 
 import numpy
 import scipy.ndimage
@@ -14,14 +14,23 @@ DIMENSION_LABELS = ['Wavelength', 'Time', 'Z', 'Y', 'X']
 # provides functions for loading, saving, transforming, and slicing that
 # array. 
 class DataDoc:
+    """
+    A loaded MRC image object and associated methods to interact with
+    the pixel data and metadata it contains. This is a wrapper around
+    the Priithon Mrc class, and is initialized with an MRC file path.
+    """
     ## Instantiate the object.
     # \param image A loaded MRC image object.
-    def __init__(self, image):
-        ## Loaded MRC object. Note this is not just an array of pixels.
+    def __init__(self, MRC_path):
+        ## gb, Oct2012 - load an Mrc file here in DataDoc - previously this 
+        #  Class  was initialized with an existing Mrc object.
+        #  Note an Mrc object is not just a numpy ndarray of pixels.
+        image = Mrc.bindFile(MRC_path) 
         self.image = image
+
         ## Header for the image data, which tells us e.g. what the ordering
         # of X/Y/Z/time/wavelength is in the MRC file.
-        self.imageHeader = Priithon.Mrc.implement_hdr(image.Mrc.hdr._array.copy())
+        self.imageHeader = Mrc.implement_hdr(image.Mrc.hdr._array.copy())
         ## Location the file is saved on disk.
         self.filePath = image.Mrc.path
 
@@ -71,6 +80,10 @@ class DataDoc:
         # Each will be passed self.alignParams so it can take whatever
         # action is necessary.
         self.alignCallbacks = []
+
+        ## gb, Oct2012
+        # get a list of the true wavelengths so we can tell the user
+        self.channelWaves = self.getChannelWaves()
 
 
     ## Convert the loaded MRC object into a 5D array of pixel data. How we
@@ -409,17 +422,80 @@ class DataDoc:
         return self.alignParams[wavelength]
 
 
-    ## Apply our alignment parameters to the data, then crop them, and either
-    # return the result for the specified wavelength(s), or save the result
-    # to the specified file path. If no wavelengths are specified, use them all.
-    # \todo All of the logic dealing with the MRC file writing is basically
-    # copied from the old imdoc module, and I don't claim to understand why it
-    # does what it does.
-    # \todo The extended header is not preserved. On the flip side, according
-    # to Eric we don't currently use the extended header anyway, so it was
-    # just wasting space.
+    ## gb, Oct2012 - subset of alignAndCrop - without alignment/cropping... 
+    #  TODO 1 - refactor alignAndCrop so it uses this (duplicate) code
+    #  TODO 2 - optionally create & return new DataDoc object(s)?
+    def saveSelection(self, wavelengths = [], timepoints = [],                   
+            savePath = None):
+        """
+        Save a wavelength=channel and/or timepoint=frame selection.
+        Basically a duplicate of parts of the alignAndCrop method below,
+        which should now be refactored to use this method instead.
+        Note that a new MRC object is created in the process.
+        """
+        if not wavelengths:
+            wavelengths = range(self.size[0])
+        if not timepoints:
+            timepoints = range(self.cropMin[1], self.cropMax[1])
+        newShape = numpy.array([len(wavelengths), len(timepoints), self.size[2], 
+                    self.size[3], self.size[4] ], dtype = numpy.int)
+
+        # make a new header
+        newHeader = Mrc.makeHdrArray()
+        Mrc.initHdrArrayFrom(newHeader, self.imageHeader)
+        newHeader.Num = (self.size[4], self.size[3], 
+                self.size[2] * len(timepoints) * len(wavelengths))
+        newHeader.NumTimes = len(timepoints)
+        newHeader.NumWaves = len(wavelengths)
+        # Size of the extended header -- forced to zero for now.
+        newHeader.next = 0
+        # Ordering of data in the file; 2 means z/w/t
+        newHeader.ImgSequence = 2
+        newHeader.PixelType = Mrc.dtype2MrcMode(numpy.float32)
+
+        if not savePath:
+            outputArray = numpy.empty(newShape, numpy.float32)
+        else:
+            if self.filePath == savePath:
+                # \todo Why do we do this?
+                del self.image.Mrc
+
+            # update wavelength info to ensure it remains correct
+            #  (we could be re-ordering here)
+            for waveIndex, wavelength in enumerate(wavelengths):
+                trueWavelength = self.imageHeader.wave[wavelength]
+                newHeader.wave[waveIndex] = trueWavelength
+
+            # Write out the header.
+            outputFile = file(savePath, 'wb')
+            outputFile.write(newHeader._array.tostring())
+
+        for timepoint in timepoints:
+            for waveIndex, wavelength in enumerate(wavelengths):
+                volume = self.imageArray[wavelength][timepoint]
+                
+                if not savePath:
+                    outputArray[timepoint, waveIndex] = volume
+                else:
+                    # Write to the file.
+                    for i, zSlice in enumerate(volume):
+                        outputFile.write(zSlice)
+
+        if not savePath:
+            # Reorder to WTZYX since that's what the user expects.
+            return outputArray.transpose([1, 0, 2, 3, 4])
+        else:
+            outputFile.close()
+        
+
+
     def alignAndCrop(self, wavelengths = [], timepoints = [], 
             savePath = None):
+        """
+        Align and Crop the chosen channels/timepoints according to 
+        values already set in this DataDoc, and save the new MRC 
+        file result.
+        """
         if not wavelengths:
             wavelengths = range(self.size[0])
         if not timepoints:
@@ -433,8 +509,8 @@ class DataDoc:
         croppedShape[0], croppedShape[1] = croppedShape[1], croppedShape[0]
         croppedShape = tuple(croppedShape)
 
-        newHeader = Priithon.Mrc.makeHdrArray()
-        Priithon.Mrc.initHdrArrayFrom(newHeader, self.imageHeader)
+        newHeader = Mrc.makeHdrArray()
+        Mrc.initHdrArrayFrom(newHeader, self.imageHeader)
         newHeader.Num = (croppedShape[4], croppedShape[3], 
                 croppedShape[2] * len(timepoints) * len(wavelengths))
         newHeader.NumTimes = len(timepoints)
@@ -443,7 +519,7 @@ class DataDoc:
         newHeader.next = 0
         # Ordering of data in the file; 2 means z/w/t
         newHeader.ImgSequence = 2
-        newHeader.PixelType = Priithon.Mrc.dtype2MrcMode(numpy.float32)
+        newHeader.PixelType = Mrc.dtype2MrcMode(numpy.float32)
 
         if not savePath:
             outputArray = numpy.empty(croppedShape, numpy.float32)
@@ -558,3 +634,17 @@ class DataDoc:
     ## As convertToMicrons, but in reverse.
     def convertFromMicrons(self, offsets):
         return numpy.divide(offsets, self.imageHeader.d)
+
+    ## Get true wavelength for each channel. gb, Oct2012
+    def getChannelWaves(self):
+        """
+        Get the real wavelengths (nm) of all channels - required info comes 
+        from attributes.
+            return : channelWaves
+                a list of wavelengths (nm)
+        """
+        channelWaves = []
+        for i in range(self.numWavelengths):
+            channelWaves.append(self.imageHeader.wave[i])
+        return channelWaves
+

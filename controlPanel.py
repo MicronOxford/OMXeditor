@@ -12,7 +12,8 @@ import alignProgressFrame
 import batchDialog
 import cropControlPanel
 import datadoc
-import diceDialog
+import splitMergeDialog
+import SItoWFdialog
 import histogram
 import imageViewer
 import realign
@@ -23,7 +24,7 @@ import viewsWindow
 
 ## List of colors to assign to different wavelengths in the file.
 COLORS_LIST = [
-    (1, 0, 0), 
+    (0.5, 0.5, 0), 
     (0, 1, 0), 
     (0, 0, 1), 
     (1, 1, 0), 
@@ -33,18 +34,29 @@ COLORS_LIST = [
 ]
 
 
+# gb, modified key codes: 70=F, 76=L, 84=T, 66=B (as in First,Last,Top,Bottom)
+KEY_MOTION_MAP = {
+        70: (0, -1, 0, 0, 0),
+        76: (0, 1, 0, 0, 0),
+        66: (0, 0, -1, 0, 0),
+        84: (0, 0, 1, 0, 0),
+        wx.WXK_DOWN: (0, 0, 0, -1, 0),
+        wx.WXK_UP: (0, 0, 0, 1, 0),
+        wx.WXK_LEFT: (0, 0, 0, 0, -1),
+        wx.WXK_RIGHT: (0, 0, 0, 0, 1),
+}
 ## Direction to move, in wavelength, T, Z, Y, X order, when the
 # appropriate key is pressed. 46 for X, 28 for Y, 17 for Z, 39 for T.
-KEY_MOTION_MAP = {
-        wx.WXK_NUMPAD3: (0, -1, 0, 0, 0),
-        wx.WXK_NUMPAD9: (0, 1, 0, 0, 0),
-        wx.WXK_NUMPAD1: (0, 0, -1, 0, 0),
-        wx.WXK_NUMPAD7: (0, 0, 1, 0, 0),
-        wx.WXK_NUMPAD2: (0, 0, 0, -1, 0),
-        wx.WXK_NUMPAD8: (0, 0, 0, 1, 0),
-        wx.WXK_NUMPAD4: (0, 0, 0, 0, -1),
-        wx.WXK_NUMPAD6: (0, 0, 0, 0, 1),
-}
+#KEY_MOTION_MAP = {
+#        wx.WXK_NUMPAD3: (0, -1, 0, 0, 0),
+#        wx.WXK_NUMPAD9: (0, 1, 0, 0, 0),
+#        wx.WXK_NUMPAD1: (0, 0, -1, 0, 0),
+#        wx.WXK_NUMPAD7: (0, 0, 1, 0, 0),
+#        wx.WXK_NUMPAD2: (0, 0, 0, -1, 0),
+#        wx.WXK_NUMPAD8: (0, 0, 0, 1, 0),
+#        wx.WXK_NUMPAD4: (0, 0, 0, 0, -1),
+#        wx.WXK_NUMPAD6: (0, 0, 0, 0, 1),
+#}
 
 ## Decorator function used to ensure that a given function is only called
 # in wx's main thread.
@@ -57,7 +69,7 @@ def callInMainThread(func):
 ## This class provides an interface for viewing and performing basic 
 # manipulations on MRC files.
 class ControlPanel(wx.Panel):
-    def __init__(self, parent, imageData,
+    def __init__(self, parent, imageDoc,
                  id = wx.ID_ANY, pos = wx.DefaultPosition,
                  size = wx.DefaultSize):
         wx.Panel.__init__(self, parent, id, style=wx.SP_NOBORDER)
@@ -65,7 +77,8 @@ class ControlPanel(wx.Panel):
 
         self.shouldProject = False
         ## Contains all the information on the displayed image
-        self.dataDoc = datadoc.DataDoc(imageData)
+        #self.dataDoc = datadoc.DataDoc(imageData)
+        self.dataDoc = imageDoc
 
         ## Which wavelengths are controlled by the mouse
         self.mouseControlWavelengths = [False] * self.dataDoc.numWavelengths
@@ -214,7 +227,7 @@ class ControlPanel(wx.Panel):
         panel = wx.Panel(self)
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.alignParamsPanels = []
-        self.alignSwapButtons = []
+        #self.alignSwapButtons = []
 
         self.histograms = []
         # For generating the histograms.
@@ -228,30 +241,36 @@ class ControlPanel(wx.Panel):
             # This sizer holds the label, swap button, and histogram.
             columnSizer = wx.BoxSizer(wx.VERTICAL)
 
+            # gb, Oct2012 - should really rename all wavelength names to channel
+            #   "wavelength" below is just an arbitrary channel number
+            trueWavelength = self.dataDoc.channelWaves[wavelength]
             label = wx.StaticText(panel, -1, 
-                    "Wavelength %d" % wavelength)
+                    "Channel %d (%d nm)" % (wavelength, trueWavelength) )
             columnSizer.Add(label, 0, wx.ALL, 3)
 
             # Holds the swap and visibility buttons.
             buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
 
-            toggleButton = wx.ToggleButton(panel, -1, label = "Visible")
-            self.prepHelpText(toggleButton, "Toggle visibility",
+            toggleButton = wx.ToggleButton(panel, -1, label = "On/Off")
+            self.prepHelpText(toggleButton, "Toggle On/Off",
                     "Click to toggle visibility for this wavelength.")
             toggleButton.SetValue(True)
             toggleButton.Bind(wx.EVT_TOGGLEBUTTON, 
                     lambda event, wavelength = wavelength: self.toggleWavelengthVisibility(wavelength))
             buttonSizer.Add(toggleButton, 0, wx.ALL, 3)
 
-            swapButton = wx.ToggleButton(panel, -1, label = "Swap")
-            self.prepHelpText(swapButton, "Swap parameters", 
-                    "Click on two swap buttons to exchange alignment " + 
-                    "parameters between the two corresponding wavelengths.")
-            swapButton.Bind(wx.EVT_TOGGLEBUTTON, self.onSwapAlignParams)
-            self.alignSwapButtons.append(swapButton)
-            buttonSizer.Add(swapButton, 0, wx.ALL, 3)
+            #swapButton = wx.ToggleButton(panel, -1, label = "Swap")
+            #self.prepHelpText(swapButton, "Swap parameters", 
+            #        "Click on two swap buttons to exchange alignment " + 
+            #        "parameters between the two corresponding wavelengths.")
+            #swapButton.Bind(wx.EVT_TOGGLEBUTTON, self.onSwapAlignParams)
+            #self.alignSwapButtons.append(swapButton)
+            #buttonSizer.Add(swapButton, 0, wx.ALL, 3)
             
             columnSizer.Add(buttonSizer)
+
+            # gb Oct2012 - re-map colors for this channel to something more meaningful
+            COLORS_LIST[wavelength] = self.waveToRGB(self.dataDoc.channelWaves[wavelength])
 
             color = COLORS_LIST[wavelength]
             newHistogram = histogram.HistogramPanel(panel, 
@@ -297,8 +316,8 @@ class ControlPanel(wx.Panel):
         autoAlignButton.Bind(wx.EVT_BUTTON, self.autoAlign)
         rowSizer.Add(autoAlignButton, 0, wx.LEFT | wx.BOTTOM, 10)
 
-        exportButton = wx.Button(panel, -1, "Export parameters")
-        self.prepHelpText(exportButton, "Export parameters",
+        exportButton = wx.Button(panel, -1, "Save params")
+        self.prepHelpText(exportButton, "Save parameters",
                 "Generate a file that contains the alignment and cropping " +
                 "parameters for this file, so that they may be loaded " +
                 "later."
@@ -306,7 +325,7 @@ class ControlPanel(wx.Panel):
         exportButton.Bind(wx.EVT_BUTTON, self.exportParameters)
         rowSizer.Add(exportButton, 0, wx.LEFT | wx.BOTTOM, 10)
 
-        loadButton = wx.Button(panel, -1, "Load parameters")
+        loadButton = wx.Button(panel, -1, "Load params")
         self.prepHelpText(loadButton, "Load parameters",
                 "Load a previously-generated file describing how to crop " +
                 "and align data."
@@ -322,13 +341,23 @@ class ControlPanel(wx.Panel):
         batchButton.Bind(wx.EVT_BUTTON, lambda event: batchDialog.BatchDialog(
                 self.parent, self))
         rowSizer.Add(batchButton, 0, wx.LEFT | wx.BOTTOM, 10)
-        diceButton = wx.Button(panel, -1, "Dice file")
-        self.prepHelpText(diceButton, "Dice file", 
-                "Cut a file up into several smaller files."
+        splitMergeButton = wx.Button(panel, -1, "Split/Merge")
+        self.prepHelpText(splitMergeButton, "Split/Merge data", 
+                "Split, Merge or Re-order data - merge not yet implemented."
         )
-        diceButton.Bind(wx.EVT_BUTTON, lambda event: diceDialog.DiceDialog(
+        splitMergeButton.Bind(wx.EVT_BUTTON, lambda event: splitMergeDialog.SplitMergeDialog(
                 self.parent, self.dataDoc))
-        rowSizer.Add(diceButton, 0, wx.LEFT | wx.BOTTOM, 10)
+        rowSizer.Add(splitMergeButton, 0, wx.LEFT | wx.BOTTOM, 10)
+        SItoWFbutton = wx.Button(panel, -1, "SItoWF")
+        self.prepHelpText(SItoWFbutton, "SI to Wide-Field", 
+                "When finished, will average phases & angles of raw SI data " +
+                "and rescale 2x to give a pseudo-wide-field image with the" +
+                "same pixel dimensions as the SIR reconstructed data " +
+                "- not yet implemented."
+        )
+        SItoWFbutton.Bind(wx.EVT_BUTTON, lambda event: SItoWFdialog.SItoWFdialog(
+                self.parent, self.dataDoc))
+        rowSizer.Add(SItoWFbutton, 0, wx.LEFT | wx.BOTTOM, 10)
 
         sizer.Add(rowSizer)
         panel.SetSizerAndFit(sizer)
@@ -400,25 +429,25 @@ class ControlPanel(wx.Panel):
     ## This function is invoked when the user clicks one of the "Swap" 
     # buttons for the alignment parameters. If two swap buttons are both
     # active, then their parameters are swapped.
-    def onSwapAlignParams(self, event):
-        firstButton = event.GetEventObject()
-        if not firstButton.GetValue():
-            return
-        firstIndex = self.alignSwapButtons.index(firstButton)
-        for i, button in enumerate(self.alignSwapButtons):
-            if button is not firstButton and button.GetValue():
-                # Found two active buttons; deactivate them both and swap 
-                # their parameters.
-                firstButton.SetValue(False)
-                button.SetValue(False)
-                firstParams = self.alignParamsPanels[firstIndex].getParamsList()
-                secondParams = self.alignParamsPanels[i].getParamsList()
-                self.alignParamsPanels[firstIndex].setParams(secondParams)
-                self.alignParamsPanels[i].setParams(firstParams)
-                self.setAlignParams(firstIndex)
-                self.setAlignParams(i)
-                return
-        # Only one button active; do nothing.
+    #def onSwapAlignParams(self, event):
+    #    firstButton = event.GetEventObject()
+    #    if not firstButton.GetValue():
+    #        return
+    #    firstIndex = self.alignSwapButtons.index(firstButton)
+    #    for i, button in enumerate(self.alignSwapButtons):
+    #        if button is not firstButton and button.GetValue():
+    #            # Found two active buttons; deactivate them both and swap 
+    #            # their parameters.
+    #            firstButton.SetValue(False)
+    #            button.SetValue(False)
+    #            firstParams = self.alignParamsPanels[firstIndex].getParamsList()
+    #            secondParams = self.alignParamsPanels[i].getParamsList()
+    #            self.alignParamsPanels[firstIndex].setParams(secondParams)
+    #            self.alignParamsPanels[i].setParams(firstParams)
+    #            self.setAlignParams(firstIndex)
+    #            self.setAlignParams(i)
+    #            return
+    #    # Only one button active; do nothing.
 
 
     ## This function is invoked when the user changes the alignment parameters.
@@ -625,7 +654,7 @@ class ControlPanel(wx.Panel):
                 break
         if amDone:
             self.alignProgressFrame.finish()
-        print "Got transformation",result,"for wavelength",wavelength
+        print "Got transformation",result,"for channel",wavelength
         self.alignParamsPanels[wavelength].setParams(result)
         self.setAlignParams(wavelength)
 
@@ -644,7 +673,7 @@ class ControlPanel(wx.Panel):
         )
         beadCentersByWavelength = []
         for wavelength in xrange(self.dataDoc.numWavelengths):
-            print "Processing wavelength",wavelength
+            print "Processing channel",wavelength
             data = volumes[wavelength][0]
             # Normalize
             data = (data - data.min()) / (data.max() - data.min())
@@ -698,7 +727,8 @@ class ControlPanel(wx.Panel):
     ## Prompt the user for a location to save alignment and cropping
     # parameters, then generate the corresponding file.
     def exportParameters(self, event = None):
-        defaultName = os.path.basename(self.dataDoc.filePath) + "-align.txt"
+        defaultName = os.path.splitext(os.path.basename(self.dataDoc.filePath))[0] + \
+                      "_align.txt" 
         dialog = wx.FileDialog(self, "Where do you want to save the file?",
                 os.path.dirname(self.dataDoc.filePath),
                 defaultName,
@@ -1008,6 +1038,26 @@ class ControlPanel(wx.Panel):
 #        util.imsave("phase.png", r)
 #        self.checkAlignment()
 
+    # gb Oct2012 - convert wavelength to approx. RGB color
+    def waveToRGB(self, wave):
+        """
+        Convert wavelength (nm) into (R,G,B) tuple - 
+        done by hand and not intended to be accurate.
+        """
+        # "python style switch" ... using a dictionary - bizarre!
+        RGBtuple = {
+            wave<420 : (0.5,0,1),
+            420<=wave<470 : (0,0,1),
+            470<=wave<500 : (0,1,1),
+            500<=wave<560 : (0,1,0),
+            560<=wave<590 : (1,1,0),
+            590<=wave<620 : (1,0.5,0),
+            620<=wave<670 : (1,0,0),
+            670<=wave : (0.5,0,0)
+            }[1]
+        #  TODO: perhaps use colors closer to fluorochrome *names*
+        #    rather than actual real emmission colors
+        return RGBtuple
 
 
 
