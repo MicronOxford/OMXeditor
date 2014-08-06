@@ -51,10 +51,6 @@ class MainWindow(wx.Frame):
         viewMenu.AppendSeparator()
         util.addMenuItem(self, viewMenu, '&Show view controls\tCtrl+T', 
                 self.OnViewControls)
-        # We can only generate stereo pairs if Priism is installed.
-        if 'PriismX' in os.listdir(os.getcwd()):
-            util.addMenuItem(self, viewMenu, '&Generate stereo pairs',
-                    self.OnStereoPairs)
 
         # Create 'Edit' menu with data editing options
         # TODO: add Split/Merge and Proj/Resize
@@ -255,12 +251,6 @@ class MainWindow(wx.Frame):
             self.getCurPanel().exportParameters()
 
 
-    ## Passthrough to the current panel.
-    def OnStereoPairs(self, event):
-        if self.requireOpenFile():
-            self.getCurPanel().generateStereoPairs()
-
-    
     ## Create a BatchDialog instance.
     def OnBatchProcess(self, event):
         if self.requireOpenFile():

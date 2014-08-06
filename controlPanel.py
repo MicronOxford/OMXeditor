@@ -18,7 +18,6 @@ import mrcEditor
 import histogram
 import imageViewer
 import simplexAlign
-import stereoPairs
 import util
 import viewsWindow
 
@@ -978,18 +977,6 @@ class ControlPanel(wx.Panel):
         self.parent.SetSize((-1, 250 + 111 * self.dataDoc.numWavelengths))
 
 
-    ## Generate a stereo pair image of ourself.
-    def generateStereoPairs(self):
-        dialog = stereoPairs.StereoDialog(self, self.dataDoc)
-        dialog.ShowModal()
-        result = dialog.getResult()
-        dialog.Destroy()
-        if result:
-            # Otherwise the user canceled. 
-            self.parent.openFile(result)
-        return
-
-
     # gb Oct2012 - convert wavelength to approx. RGB color
     def waveToRGB(self, wave):
         """
@@ -1007,8 +994,6 @@ class ControlPanel(wx.Panel):
             620<=wave<670 : (1,0,0),
             670<=wave : (0.5,0,0)
             }[1]
-        #  TODO: perhaps use colors closer to fluorochrome *names*
-        #    rather than actual real emmission colors?
         return RGBtuple
 
 
