@@ -2,6 +2,38 @@ import wx
 import OpenGL.GL as GL
 import threading
 
+# key codes: 70=F, 76=L, 84=T, 66=B (as in First, Last, Top, Bottom)
+KEY_MOTION_MAP = {
+        70: (0, -1, 0, 0, 0),
+        76: (0, 1, 0, 0, 0),
+        66: (0, 0, -1, 0, 0),
+        84: (0, 0, 1, 0, 0),
+        wx.WXK_DOWN: (0, 0, 0, -1, 0),
+        wx.WXK_UP: (0, 0, 0, 1, 0),
+        wx.WXK_LEFT: (0, 0, 0, 0, -1),
+        wx.WXK_RIGHT: (0, 0, 0, 0, 1),
+}
+
+
+# Convert wavelength (nm) into (R,G,B) tuple for approx color.
+def waveToRGB(wave):
+    """
+    Convert wavelength (nm) into (R,G,B) tuple for approx color.
+    """
+    # "python style switch" ... using a dictionary - bizarre!
+    RGBtuple = {
+        wave<420 : (0.5,0,1),
+        420<=wave<470 : (0,0,1),
+        470<=wave<500 : (0,1,1),
+        500<=wave<560 : (0,1,0),
+        560<=wave<590 : (1,1,0),
+        590<=wave<620 : (1,0.5,0),
+        620<=wave<670 : (1,0,0),
+        670<=wave : (0.5,0,0)
+        }[1]
+    return RGBtuple
+
+
 ## Copied from the OMX version.
 def addLabeledInput(parent, sizer, id = -1, label = '',
                     defaultValue = '', size = (-1, -1), minSize = (-1, -1),

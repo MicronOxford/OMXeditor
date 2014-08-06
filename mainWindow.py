@@ -346,29 +346,6 @@ class FileDropper(wx.FileDropTarget):
         for file in filenames[::-1]:
             self.parent.openFile(file)
 
-## List of colors to assign to different wavelengths in the file.
-COLORS_LIST = [
-    (0.5, 0.5, 0), 
-    (0, 1, 0), 
-    (0, 0, 1), 
-    (1, 1, 0), 
-    (0, 1, 1), 
-    (1, 0, 1), 
-    (1, 1, 1), 
-]
-
-
-# gb, modified key codes: 70=F, 76=L, 84=T, 66=B (as in First,Last,Top,Bottom)
-KEY_MOTION_MAP = {
-        70: (0, -1, 0, 0, 0),
-        76: (0, 1, 0, 0, 0),
-        66: (0, 0, -1, 0, 0),
-        84: (0, 0, 1, 0, 0),
-        wx.WXK_DOWN: (0, 0, 0, -1, 0),
-        wx.WXK_UP: (0, 0, 0, 1, 0),
-        wx.WXK_LEFT: (0, 0, 0, 0, -1),
-        wx.WXK_RIGHT: (0, 0, 0, 0, 1),
-}
 
 
 ## This class provides an interface for viewing and performing basic 
@@ -383,6 +360,8 @@ class ControlPanel(wx.Panel):
         self.shouldProject = False
         ## Contains all the information on the displayed image
         self.dataDoc = imageDoc
+        # list of channel color tuples (default white before updating)
+        self.colors = [(1, 1, 1,) for x in range(self.dataDoc.numWavelengths)]
         # store an Edits instance with an up-to-date DataDoc list
         self.editor = editor.Editor(parent.getDocs()+[imageDoc])
         #self.edit.printDocList()
@@ -489,7 +468,7 @@ class ControlPanel(wx.Panel):
 
         # Allow use of numpad keys to change the slice lines.
         accelTable = []
-        for code, offset in KEY_MOTION_MAP.iteritems():
+        for code, offset in util.KEY_MOTION_MAP.iteritems():
             id = wx.NewId()
             accelTable.append((wx.ACCEL_NORMAL, code, id))
             self.Bind(wx.EVT_MENU, lambda event, code = code: self.onKey(code),
@@ -569,10 +548,8 @@ class ControlPanel(wx.Panel):
 
             columnSizer.Add(buttonSizer)
 
-            # gb Oct2012 - re-map colors for this channel to something more meaningful
-            COLORS_LIST[wavelength] = self.waveToRGB(self.dataDoc.channelWaves[wavelength])
-
-            color = COLORS_LIST[wavelength]
+            color = util.waveToRGB(self.dataDoc.channelWaves[wavelength])
+            self.colors[wavelength] = color
             newHistogram = histogram.HistogramPanel(panel, 
                     self.changeHistScale, self.setHelpText, 
                     wavelength, dataSlice[wavelength], color, 
@@ -1139,7 +1116,7 @@ class ControlPanel(wx.Panel):
                 viewer.changeImgOffset(wavelength, 0, 0, 0, 1, False)
 
         for i in xrange(self.dataDoc.numWavelengths):
-            viewer.setColor(i, COLORS_LIST[i])
+            viewer.setColor(i, self.colors[i])
 
 
     def getIsViewCropped(self):
@@ -1260,8 +1237,8 @@ class ControlPanel(wx.Panel):
 
     ## Process keypad inputs to move the slice lines around.
     def onKey(self, code):
-        if code in KEY_MOTION_MAP:
-            self.moveSliceLines(KEY_MOTION_MAP[code])
+        if code in util.KEY_MOTION_MAP:
+            self.moveSliceLines(util.KEY_MOTION_MAP[code])
 
 
     ## Toggle the visibility of our child windows. If we become displayed,
@@ -1281,26 +1258,6 @@ class ControlPanel(wx.Panel):
     # wavelength controls.
     def setParentSize(self):
         self.parent.SetSize((-1, 250 + 111 * self.dataDoc.numWavelengths))
-
-
-    # gb Oct2012 - convert wavelength to approx. RGB color
-    def waveToRGB(self, wave):
-        """
-        Convert wavelength (nm) into (R,G,B) tuple - 
-        done by hand and not intended to be accurate.
-        """
-        # "python style switch" ... using a dictionary - bizarre!
-        RGBtuple = {
-            wave<420 : (0.5,0,1),
-            420<=wave<470 : (0,0,1),
-            470<=wave<500 : (0,1,1),
-            500<=wave<560 : (0,1,0),
-            560<=wave<590 : (1,1,0),
-            590<=wave<620 : (1,0.5,0),
-            620<=wave<670 : (1,0,0),
-            670<=wave : (0.5,0,0)
-            }[1]
-        return RGBtuple
 
 
 ## This class is a small panel that contains alignment parameter controls 
