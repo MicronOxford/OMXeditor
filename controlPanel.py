@@ -17,7 +17,7 @@ import histogram
 import imageViewer
 import simplexAlign
 import util
-import viewsWindow
+import viewControlWindow
 
 
 ## List of colors to assign to different wavelengths in the file.
@@ -167,11 +167,12 @@ class ControlPanel(wx.Panel):
 
         ## Allows user to customize the views they see, e.g. add kymographs,
         # or take projections of views.
-        self.viewsWindow = viewsWindow.ViewsWindow(self, self.dataDoc, 
+        self.viewControlWindow = viewControlWindow.ViewControlWindow(self,
+                self.dataDoc,
                 title = 'View settings',
                 style = wx.RESIZE_BORDER | wx.CAPTION)
-        self.viewsWindow.SetPosition((10, 40))
-        self.viewsWindow.Hide()
+        self.viewControlWindow.SetPosition((10, 40))
+        self.viewControlWindow.Hide()
 
         ## We need to track the visibility of the views window, so we know
         # whether or not to show it when we get focus.
@@ -890,13 +891,13 @@ class ControlPanel(wx.Panel):
             viewer.Bind(wx.EVT_MOUSE_EVENTS, self.OnMouse)
             self.updateGLGraphics(viewsToUpdate = [viewer])
             self.setViewerScalings()
-            self.viewsWindow.Raise()
+            self.viewControlWindow.Raise()
 
 
     ## Show/hide our views control window.
     def toggleViewsWindow(self):
-        self.viewsWindow.Show(not self.viewsWindow.IsShown())
-        self.wasViewsWindowShown = self.viewsWindow.IsShown()
+        self.viewControlWindow.Show(not self.viewControlWindow.IsShown())
+        self.wasViewsWindowShown = self.viewControlWindow.IsShown()
 
 
     ## Change the projection mode for the window with the specified axes.
@@ -932,7 +933,7 @@ class ControlPanel(wx.Panel):
                 if delta and axis not in viewer.axes:
                     updatedViews.append(viewer)
         # Inform our ViewsWindow about the new sliceline locations.
-        self.viewsWindow.setSliders(self.dataDoc.getSliceCoords())
+        self.viewControlWindow.setSliders(self.dataDoc.getSliceCoords())
         wx.CallAfter(self.updateGLGraphics, updatedViews)
         wx.CallAfter(self.setViewerScalings)
 
@@ -963,7 +964,7 @@ class ControlPanel(wx.Panel):
             window.Show(isVisible)
         # Only show the views window if we were showing it before we were
         # hidden earlier.
-        self.viewsWindow.Show(isVisible and self.wasViewsWindowShown)
+        self.viewControlWindow.Show(isVisible and self.wasViewsWindowShown)
         if isVisible:
             self.setParentSize()
             self.parent.Raise()

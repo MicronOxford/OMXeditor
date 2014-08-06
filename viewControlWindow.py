@@ -4,11 +4,11 @@ import wx
 import datadoc
 
 
-## The ViewsWindow class provides a window that allows the user
+## The ViewControlWindow class provides a window that allows the user
 # to control and customize various views of the data -- by setting the 
 # 4D crosshairs, toggling visibility of a specific perspective, and creating
 # projections across orthogonal axes.
-class ViewsWindow(wx.Frame):
+class ViewControlWindow(wx.Frame):
     def __init__(self, parent, dataDoc, *args, **kwargs):
         wx.Frame.__init__(self, parent, *args, **kwargs)
         ## We call a few functions on our parent as a way to communicate with
