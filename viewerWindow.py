@@ -1,8 +1,9 @@
 import numpy
 import datadoc
-import OpenGL.GL as GL
 from OpenGL.GL import *
+import OpenGL.GL as GL
 import wx
+import wx.glcanvas
 
 ## Vertical adjustment for the size of the menubar
 VERTICAL_PADDING = 16
