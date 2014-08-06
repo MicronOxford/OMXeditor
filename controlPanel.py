@@ -14,7 +14,7 @@ import datadoc
 import dialogs
 import editor
 import histogram
-import imageViewer
+import viewerWindow
 import simplexAlign
 import util
 import viewControlWindow
@@ -106,7 +106,7 @@ class ControlPanel(wx.Panel):
             # Have more than one Z slice, so show the Z views.
             axes.extend([(4, 2), (2, 3)])
         for axesPair in axes:
-            self.windows.append(imageViewer.ViewerWindow(self, 
+            self.windows.append(viewerWindow.ViewerWindow(self, 
                             axes = axesPair,
                             dataDoc = self.dataDoc,
                     )
@@ -883,7 +883,7 @@ class ControlPanel(wx.Panel):
                     break
         else:
             # Create a new viewer.
-            newWindow = imageViewer.ViewerWindow(self, axes, dataDoc = self.dataDoc)
+            newWindow = viewerWindow.ViewerWindow(self, axes, dataDoc = self.dataDoc)
 
             self.windows.append(newWindow)
             viewer = newWindow.viewer
