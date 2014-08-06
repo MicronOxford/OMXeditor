@@ -70,18 +70,16 @@ Feature additions
 
 TODO
 ----
-* refactor: move non-interactive editing procedures to mrcEditor.py where possible
-* refactor / enhancement: provide headless access to all processing operations
-* refactor: merge datadoc / MRC, remove Priithon dependency
+* refactor: move editing functions to editor.py and provide headless CLI interface
 * refactor: module naming, code organization
-* refactor: separate all wx and OpenGL GUI code from processing
 * refactor: split combined editing function dialogs into individual dialogs & finish
 * refactor: add docstrings and try to improve adherence to conventions
-* test / document: test cross-platform, tidy git branches & tag stable versions
 * document: project history, licensing, READMEs
 * document: tidy user guide
+* test / document: test cross-platform, tidy git branches & tag stable versions
 * bugfix: YZ view panel controls / projection not working properly
 * test: unit tests for non-interactive code (auto-alignment etc.)
+* refactor: merge datadoc / MRC, remove Priithon dependency
 * enhancement: auto-alignment speed (parameters, algorithm, multiprocess)
 * enhancement: pre-align with downsampling and/or FFT
 * test: do alignment parameters apply across different image sizes?
