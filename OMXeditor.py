@@ -10,7 +10,7 @@ import mainWindow
 
 ## The requisite WX App instance; this just creates the main window and 
 # passes it any files that were specified in the commandline.
-class App(wx.App):
+class OMXeditorApp(wx.App):
     def OnInit(self):
         import sys
         self.frame = mainWindow.MainWindow('OMX Editor mv2.4')
@@ -43,6 +43,5 @@ class App(wx.App):
 
 
 if __name__ == '__main__':
-    app = App(redirect=False)
+    app = OMXeditorApp(redirect=False)
     app.MainLoop()
-
