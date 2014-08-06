@@ -15,7 +15,7 @@ import controlPanel
 
 ## This class provides a window that displays a plot, showing how much 
 # improvement in alignment has been achieved. 
-class AlignProgressFrame(wx.Frame):
+class AlignProgressWindow(wx.Frame):
     def __init__(self, parent, numWavelengths):
         wx.Frame.__init__(self, parent,
                 style = wx.RESIZE_BORDER | wx.FRAME_TOOL_WINDOW | wx.CAPTION)

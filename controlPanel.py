@@ -8,7 +8,7 @@ import time
 import wx
 
 import alignParamsPanel
-import alignProgressFrame
+import alignProgressWindow
 import cropControlPanel
 import datadoc
 import dialogs
@@ -196,7 +196,7 @@ class ControlPanel(wx.Panel):
         self.SetAcceleratorTable(table)
 
         ## Window holding display of auto-alignment progress
-        self.alignProgressFrame = None
+        self.alignProgressWindow = None
 
         ## So we can close our window if necessary.
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -451,9 +451,9 @@ class ControlPanel(wx.Panel):
 
     ## Close our alignment progress window, if any.
     def OnClose(self, event = None):
-        if self.alignProgressFrame is not None:
-            self.alignProgressFrame.Destroy()
-            self.alignProgressFrame = None
+        if self.alignProgressWindow is not None:
+            self.alignProgressWindow.Destroy()
+            self.alignProgressWindow = None
 
 
     ## Get the current view index for the given axis.
@@ -553,8 +553,9 @@ class ControlPanel(wx.Panel):
         targetCoords = self.dataDoc.getSliceCoords((1, 2))
         referenceData = self.getFilteredData(referenceIndex)
 
-        self.alignProgressFrame = alignProgressFrame.AlignProgressFrame(self, self.dataDoc.numWavelengths)
-        self.alignProgressFrame.Show()
+        self.alignProgressWindow = alignProgressWindow.AlignProgressWindow(
+                self, self.dataDoc.numWavelengths)
+        self.alignProgressWindow.Show()
 
         for i in wavelengthsToAlign:
             if i == referenceIndex:
@@ -601,13 +602,13 @@ class ControlPanel(wx.Panel):
     ## Update the status text to show the user how auto-alignment is going.
     @callInMainThread
     def updateAutoAlign(self, startingCost, currentCost, wavelength):
-        self.alignProgressFrame.newData(wavelength, currentCost)
+        self.alignProgressWindow.newData(wavelength, currentCost)
 
 
     ## Receive notification from one of the aligner threads that it's now
     # working on Z alignment.
     def alignSwitchTo3D(self, wavelength):
-        self.alignProgressFrame.switchTo3D(wavelength)
+        self.alignProgressWindow.switchTo3D(wavelength)
 
 
     ## Receive notification from one of the aligner threads that it's all 
@@ -622,7 +623,7 @@ class ControlPanel(wx.Panel):
                 amDone = False
                 break
         if amDone:
-            self.alignProgressFrame.finish()
+            self.alignProgressWindow.finish()
         print "Got transformation",result,"for channel",wavelength
         self.alignParamsPanels[wavelength].setParams(result)
         self.setAlignParams(wavelength)
@@ -631,7 +632,7 @@ class ControlPanel(wx.Panel):
     ## The align progress frame has been destroyed, so we don't need to 
     # track it any more.
     def clearProgressFrame(self):
-        self.alignProgressFrame = None
+        self.alignProgressWindow = None
 
 
     ## Calculate the centers of the beads and find out how well we have 
