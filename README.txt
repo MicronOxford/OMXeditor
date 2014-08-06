@@ -71,7 +71,6 @@ Feature additions
 TODO
 ----
 * refactor: move editing functions to editor.py and provide headless CLI interface
-* refactor: module naming, code organization
 * refactor: split combined editing function dialogs into individual dialogs & finish
 * refactor: add docstrings and try to improve adherence to conventions
 * document: project history, licensing, READMEs
@@ -90,6 +89,3 @@ TODO
 * enhancement: average phases+angles for pseudo-widefield (+resizing)
 * enhancement: add information about operations carried out to MRC title fields
 * document: API docs
-
-Refactoring:
-Functions: auto-align, crop, batch align / crop, split, merge, re-order, project, resize
