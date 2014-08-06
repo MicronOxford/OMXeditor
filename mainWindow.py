@@ -2,9 +2,7 @@ import wx, wx.aui
 import os
 import sys
 
-import splitMergeDialog
-import projResizeDialog
-import batchDialog
+import dialogs
 import controlPanel
 import util
 
@@ -228,14 +226,14 @@ class MainWindow(wx.Frame):
     ## Passthrough to the current panel.
     def OnSplitMerge(self, event):
         if self.requireOpenFile():
-            splitMergeDialog.SplitMergeDialog(
-                self.getCurPanel(), self.getCurPanel().dataDoc)
+            dialogs.SplitMergeDialog(
+                    self.getCurPanel(), self.getCurPanel().dataDoc)
 
 
     ## Passthrough to the current panel.
     def OnProjResize(self, event):
         if self.requireOpenFile():
-            projResizeDialog.ProjResizeDialog(
+            dialogs.ProjResizeDialog(
                 self.getCurPanel(), self.getCurPanel().dataDoc)
     
 
@@ -254,7 +252,7 @@ class MainWindow(wx.Frame):
     ## Create a BatchDialog instance.
     def OnBatchProcess(self, event):
         if self.requireOpenFile():
-            batchDialog.BatchDialog(self, self.getCurPanel())
+            dialogs.BatchDialog(self, self.getCurPanel())
 
     
     def OnAbout(self, event = None):

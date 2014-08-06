@@ -90,3 +90,10 @@ TODO
 * enhancement: average phases+angles for pseudo-widefield (+resizing)
 * enhancement: add information about operations carried out to MRC title fields
 * document: API docs
+
+Refactoring:
+Functions: auto-align, crop, batch align / crop, split, merge, re-order, project, resize
+Windows: mainWindow = controlPanel, cropControlPanel, alignParamsPanel
+         viewWindow
+         viewControlWindow
+         alignProgressWindow

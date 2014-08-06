@@ -9,11 +9,9 @@ import wx
 
 import alignParamsPanel
 import alignProgressFrame
-import batchDialog
 import cropControlPanel
 import datadoc
-import splitMergeDialog
-import projResizeDialog
+import dialogs
 import editor
 import histogram
 import imageViewer
@@ -332,14 +330,14 @@ class ControlPanel(wx.Panel):
                 "Apply these cropping and/or alignment parameters to " +
                 "a large number of files."
         )
-        batchButton.Bind(wx.EVT_BUTTON, lambda event: batchDialog.BatchDialog(
+        batchButton.Bind(wx.EVT_BUTTON, lambda event: dialogs.BatchDialog(
                 self.parent, self))
         rowSizer.Add(batchButton, 0, wx.LEFT | wx.BOTTOM, 10)
         splitMergeButton = wx.Button(panel, -1, "Split/Merge")
         self.prepHelpText(splitMergeButton, "Split/Merge data", 
                 "Split, Merge or Re-order data - merge not yet implemented."
         )
-        splitMergeButton.Bind(wx.EVT_BUTTON, lambda event: splitMergeDialog.SplitMergeDialog(
+        splitMergeButton.Bind(wx.EVT_BUTTON, lambda event: dialogs.SplitMergeDialog(
                 self, self.dataDoc))
         rowSizer.Add(splitMergeButton, 0, wx.LEFT | wx.BOTTOM, 10)
         projResizeButton = wx.Button(panel, -1, "Proj/Resize")
@@ -349,7 +347,7 @@ class ControlPanel(wx.Panel):
                 "facilitate merging and comparison of SI and wide-field " +
                 "data for a given sample. Not yet implemented!"
         )
-        projResizeButton.Bind(wx.EVT_BUTTON, lambda event: projResizeDialog.ProjResizeDialog(
+        projResizeButton.Bind(wx.EVT_BUTTON, lambda event: dialogs.ProjResizeDialog(
                 self, self.dataDoc))
         rowSizer.Add(projResizeButton, 0, wx.LEFT | wx.BOTTOM, 10)
 
