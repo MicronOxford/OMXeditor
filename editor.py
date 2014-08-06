@@ -122,25 +122,6 @@ class Editor():
         """
         print "TODO: implement Auto-align runner"
 
-    ## Simple debugging function to print out the correlation coefficient for   
-    # the first two wavelengths. This also makes a convenient hook for other    
-    # debugging logic.                                                          
-    #def correlate(self):                                                        
-    #    data = self.dataDoc.takeDefaultSlice((1, 2))                            
-    #    first = data[0].astype(numpy.float64)                                   
-    #    first /= first.max()                                                    
-    #    second = data[1].astype(numpy.float64)                                  
-    #    second /= second.max()                                                  
-    #    print "Correlation is",util.correlationCoefficient(first, second)       
-    #    # Calculate phase correlation for comparison:                           
-    #    fa = numpy.fft.fftn(data[0])                                           
-    #    fb = numpy.fft.fftn(data[1])                                           
-    #    r = (fa * fb.conj())                                                   
-    #    r = r / numpy.abs(r)                                                   
-    #    r = numpy.fft.ifftn(r).real                                            
-    #    util.imsave("phase.png", r)                                            
-    #    self.checkAlignment()
-
 
 #############################################################
 # this function is used when OMXeditor is invoked as a script

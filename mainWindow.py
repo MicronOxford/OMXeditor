@@ -369,25 +369,6 @@ KEY_MOTION_MAP = {
         wx.WXK_LEFT: (0, 0, 0, 0, -1),
         wx.WXK_RIGHT: (0, 0, 0, 0, 1),
 }
-## Direction to move, in wavelength, T, Z, Y, X order, when the
-# appropriate key is pressed. 46 for X, 28 for Y, 17 for Z, 39 for T.
-#KEY_MOTION_MAP = {
-#        wx.WXK_NUMPAD3: (0, -1, 0, 0, 0),
-#        wx.WXK_NUMPAD9: (0, 1, 0, 0, 0),
-#        wx.WXK_NUMPAD1: (0, 0, -1, 0, 0),
-#        wx.WXK_NUMPAD7: (0, 0, 1, 0, 0),
-#        wx.WXK_NUMPAD2: (0, 0, 0, -1, 0),
-#        wx.WXK_NUMPAD8: (0, 0, 0, 1, 0),
-#        wx.WXK_NUMPAD4: (0, 0, 0, 0, -1),
-#        wx.WXK_NUMPAD6: (0, 0, 0, 0, 1),
-#}
-
-## Decorator function used to ensure that a given function is only called
-# in wx's main thread.
-def callInMainThread(func):
-    def wrappedFunc(*args, **kwargs):
-        wx.CallAfter(func, *args, **kwargs)
-    return wrappedFunc
 
 
 ## This class provides an interface for viewing and performing basic 
@@ -914,7 +895,7 @@ class ControlPanel(wx.Panel):
 
     ## Retrieve the 3D array for the specified wavelength, in addition to 
     # our reference wavelength, and pass them back to the worker.
-    @callInMainThread
+    @util.callInMainThread
     def getFullVolume(self, wavelength, worker):
         reference = self.getReferenceWavelength()
         result = self.dataDoc.alignAndCrop(
@@ -925,7 +906,7 @@ class ControlPanel(wx.Panel):
 
 
     ## Update the status text to show the user how auto-alignment is going.
-    @callInMainThread
+    @util.callInMainThread
     def updateAutoAlign(self, startingCost, currentCost, wavelength):
         self.alignProgressWindow.newData(wavelength, currentCost)
 
@@ -938,7 +919,7 @@ class ControlPanel(wx.Panel):
 
     ## Receive notification from one of the aligner threads that it's all 
     # done.
-    @callInMainThread
+    @util.callInMainThread
     def finishAutoAligning(self, result, wavelength):
         self.alignedWavelengths[wavelength] = True
         # Check if we've done with alignment for all wavelengths
@@ -1322,15 +1303,6 @@ class ControlPanel(wx.Panel):
         return RGBtuple
 
 
-
-printLock = threading.Lock()
-## Simple function for debugging when dealing with multiple threads, since
-# otherwise Python's "print" builtin isn't threadsafe.
-def threadPrint(*args):
-    with printLock:
-        print " ".join([str(s) for s in args])
-
-
 ## This class is a small panel that contains alignment parameter controls 
 # (X, Y, and Z translate; rotate about Z axis; zoom)
 class AlignParamsPanel(wx.Panel):
@@ -1491,16 +1463,6 @@ class CropControlPanel(wx.Panel):
                 index += 1
             sizer.Add(rowSizer)
             rowSizer = wx.BoxSizer(wx.HORIZONTAL)
-        
-        # Add a preview button.
-        #previewButton = wx.ToggleButton(self, -1, "Preview crop")
-        #helpFunc(previewButton, "Preview crop", 
-        #        "Shows what the crop will look like when applied to the " + 
-        #        "image. You must save the image to actually apply the crop."
-        #)
-        #previewButton.Bind(wx.EVT_TOGGLEBUTTON, lambda event: toggleCropCallback())
-        #sizer.Add(previewButton)
-
         self.SetSizerAndFit(sizer)
 
 

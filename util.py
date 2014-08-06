@@ -1,9 +1,5 @@
 import wx
-
-import numpy
 import OpenGL.GL as GL
-import scipy
-import scipy.ndimage
 import threading
 
 ## Copied from the OMX version.
@@ -71,3 +67,19 @@ def callInNewThread(function):
     def wrappedFunc(*args, **kwargs):
         threading.Thread(target = function, args = args, kwargs = kwargs).start()
     return wrappedFunc
+
+
+## Decorator function used to ensure that a given function is only called
+# in wx's main thread.
+def callInMainThread(func):
+    def wrappedFunc(*args, **kwargs):
+        wx.CallAfter(func, *args, **kwargs)
+    return wrappedFunc
+
+
+printLock = threading.Lock()
+## Simple function for debugging when dealing with multiple threads, since
+# otherwise Python's "print" builtin isn't threadsafe.
+def threadPrint(*args):
+    with printLock:
+        print " ".join([str(s) for s in args])

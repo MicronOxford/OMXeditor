@@ -93,7 +93,3 @@ TODO
 
 Refactoring:
 Functions: auto-align, crop, batch align / crop, split, merge, re-order, project, resize
-Windows: mainWindow = controlPanel, cropControlPanel, alignParamsPanel
-         viewWindow
-         viewControlWindow
-         alignProgressWindow

@@ -4,8 +4,6 @@ import scipy.optimize
 import threading
 import time
 
-import util
-
 ## Step size multipliers to convince simplex to take differently-sized steps
 # in each parameter. Simplex's initial step size is .00025 -- okay for zoom
 # but too small to be likely to get the right translational or rotational
