@@ -1,12 +1,9 @@
-""" OMX Editor, Micron Oxford version.
-    
-    The MrcEditor module collects together all non-interactive procedures
-    and transformations that Editor applies to MRC/DataDoc images.
+"""
+    The edit module collects together all non-interactive procedures
+    and transformations that OMXeditor applies to MRC images.
     The intention is that its methods can be run interactively via the 
     various Editor GUI elements, or headless as scripted jobs.
     
-    Copyright (c) ???
-    License: ???
     Authors: Graeme Ball (graeme.ball@bioch.ox.ac.uk)
              Chris Weisiger 
 """
@@ -19,7 +16,7 @@ import sys
 import datadoc
 import argparse
 
-class MrcEditor():
+class Editor():
     """
     This class provides an interface for running OMX Editor tasks.
     It can be run interactively via the various Editor GUI elements,
@@ -146,11 +143,11 @@ class MrcEditor():
 
 
 #############################################################
-# this function is used when mrcEditor is invoked as a script
+# this function is used when OMXeditor is invoked as a script
 #############################################################
 if __name__ == '__main__':
     """
-    mrcEditor can be invoked as a script, passing in Mrc file paths 
+    OMXeditor can be invoked as a script, passing in Mrc file paths 
     and flags to run specific jobs.
     """
     parser = argparse.ArgumentParser()
@@ -181,4 +178,5 @@ if __name__ == '__main__':
         print("TODO: display Mrc file info")
     if isinstance(args.align, int):
         print("TODO: align these files using channel %d" % args.align)
-    #mrcEdit = MrcEditor(mrcFiles)
+    # FIXME, not implemented
+    #editor = Editor(mrcFiles)

@@ -14,7 +14,7 @@ import cropControlPanel
 import datadoc
 import splitMergeDialog
 import projResizeDialog
-import mrcEditor
+import editor
 import histogram
 import imageViewer
 import simplexAlign
@@ -79,7 +79,7 @@ class ControlPanel(wx.Panel):
         ## Contains all the information on the displayed image
         self.dataDoc = imageDoc
         # store an Edits instance with an up-to-date DataDoc list
-        self.mrcEditor = mrcEditor.MrcEditor(parent.getDocs()+[imageDoc])
+        self.editor = editor.Editor(parent.getDocs()+[imageDoc])
         #self.edit.printDocList()
 
         ## Which wavelengths are controlled by the mouse

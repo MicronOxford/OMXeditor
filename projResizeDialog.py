@@ -21,8 +21,8 @@ class ProjResizeDialog(wx.Dialog):
             ):
         wx.Dialog.__init__(self, parent, -1, "Project/Resize", pos, size, style)
 
-        self.mrcEditor = parent.mrcEditor
-        self.dataDocs = self.mrcEditor.dataDocs
+        self.editor = parent.editor
+        self.dataDocs = self.editor.dataDocs
         self.dataDoc = dataDoc
 
         mainSizer = wx.BoxSizer(wx.ALIGN_CENTER)
@@ -68,23 +68,23 @@ class ProjResizeDialog(wx.Dialog):
         self.Show()
 
 
-    # TODO: create and call mrcEditor.projectSI(), then update display 
+    # TODO: create and call editor.projectSI(), then update display 
     def OnProject(self, event):
         """
         Take selected image doc and project (mean) phases and angles in Z-dim.
         """
-        #self.mrcEditor.projectSI(self.dataDocs)
+        #self.editor.projectSI(self.dataDocs)
         print "Not yet implemented."
         self.Hide()
         self.Destroy()
 
-    # TODO: create and call mrcEditor.resize(), then update display 
+    # TODO: create and call editor.resize(), then update display 
     def OnResize(self, event):
         """
         Take selected image doc and resize/resample XY with interpolation 
         according to scale factor.
         """
-        #self.mrcEditor.projectSI(self.dataDocs)
+        #self.editor.projectSI(self.dataDocs)
         print "Not yet implemented."
         self.Hide()
         self.Destroy()
