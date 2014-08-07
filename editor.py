@@ -30,34 +30,35 @@ class Editor():
 
     def printDocsInfo(self):
         """
-        Test method.
+        Print header info for a list of datadocs.
         """
         for doc in self.dataDocs:
             print doc.filePath
             print doc.image.Mrc.info()
     
-    def splitFrames(self):
+    def splitTimepoints(self):
         """
-        TODO: implement Split Frames runner
+        Write new datadoc for a subset of timepoints.
         """
-        print "TODO: implement Split Frames runner"
+        print "TODO: implement SplitTimepoints"
 
     def splitChannels(self):
         """
-        TODO: implement Split Channels runner
+        Write new datadoc for a subset of timepoints.
         """
-        print "TODO: implement Split Channels runner"
+        print "TODO: implement SplitChannels"
 
-    def reorderChannels(self, fullImagePath, doc, newMap):
+    def reorderChannels(self, doc, newMap):
         """
         Re-order image channels according to list mapping old->new.
         e.g. newMap = [2, 0, 1] means 0->2, 1->0, 2->1
         """
-        pathBase = os.path.splitext(fullImagePath)[0]
+        pathBase = os.path.splitext(doc.filePath)[0]
         tags = '_ERO'
         fileExt = ".dv"
         targetFilename = pathBase + tags + fileExt
         doc.saveSelection(savePath = targetFilename, wavelengths = newMap)
+        # TODO, get new datadoc & add to list of docs
         return True
         
 
@@ -91,9 +92,9 @@ class Editor():
         # 3. Save resulting datadoc, return a ref to it, and add to our list
         
 
-    def SItoWF(self, doc):
+    def project(self, doc):
         """                                                                     
-        TODO: implement SI to widefield method
+        Project raw SI data to give pseudo-widefield image.
         """                                                                     
         print "all docs known to this Edits instance:-" 
         self.printDocsInfo()
@@ -110,17 +111,23 @@ class Editor():
         # 3. create a new Mrc and DataDoc / save the result
 
 
-    def cropData(self):
+    def alignAndCrop(self):
         """
-        TODO: implement datadoc cropping.
+        Align and crop a datadoc, returning path to new datadoc.
         """
-        print "TODO: implement datadoc cropping"
+        print "TODO: implement alignAndCrop"
 
     def autoAlign(self):
         """
-        TODO: implement Auto-align runner
+        Find alignment parameters relative to a reference channel.
         """
         print "TODO: implement Auto-align runner"
+
+    def batchAlignAndCrop(self):
+        """
+        Align and crop a list of datadocs, returning list of new paths.
+        """
+        print "TODO: implement batch batchAlignAndCrop"
 
 
 #############################################################
@@ -138,7 +145,7 @@ if __name__ == '__main__':
         help="use this channel to auto-align Mrc file(s) and save parameters")
     parser.add_argument('-b', '--batch-align', action="store", type=str, 
         help="batch-align Mrc file(s) according to this parameter file")
-    parser.add_argument('-C', '--crop', action="store", type=str,
+    parser.add_argument('-c', '--crop', action="store", type=str,
         help="crop the file(s) using comma-separated xmin,xmax,ymin,ymax")
     parser.add_argument('-sc', '--split-channels', action="store_true", 
         help="split the file(s) into one file per channel")
