@@ -16,7 +16,7 @@ import dialogs
 import editor
 import util
 import histogram
-import simplexAlign
+import align
 import alignProgressWindow
 
 
@@ -857,7 +857,7 @@ class ControlPanel(wx.Panel):
                     shouldAdjustGuess = False
                     break
 
-            aligner = simplexAlign.SimplexAlign(self, referenceData, i, guess,
+            aligner = align.SimplexAlign(self, referenceData, i, guess,
                     shouldAdjustGuess = shouldAdjustGuess)
 
 
