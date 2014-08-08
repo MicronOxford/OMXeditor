@@ -61,7 +61,7 @@ class AutoAligner():
 
     def updateAutoAlign(self, startCost, currentCost, channel):
         """
-        Update status text.   
+        Update status text.
         """
         print "channel ", channel, " current cost = ", currentCost
 
@@ -100,7 +100,7 @@ MIN_COST_CHANGE = .1 ** 4
 
 ## Use the Simplex algorithm as implemented in SciPy to find the transformation
 # (as an XY translation, a rotation about Z, and a zoom factor) from the first
-# matrix to the second matrix. Both matrices are 2D here; Z translation is 
+# matrix to the second matrix. Both matrices are 2D here; Z translation is
 # not considered.
 class SimplexAlign(threading.Thread):
     ## Instantiate the class and start aligning.
@@ -109,7 +109,7 @@ class SimplexAlign(threading.Thread):
     #        floats normalized to the range [0, 1].
     # \param index movingData's wavelength.
     # \param guess Initial alignment parameters (dx, dy, rotation, zoom)
-    # \param shouldAdjustGuess If true, use cross correlation to adjust the 
+    # \param shouldAdjustGuess If true, use cross correlation to adjust the
     #        guess in an attempt to improve it.
     def __init__(self, parent, referenceData, index, guess,
                  shouldAdjustGuess = False):
@@ -117,7 +117,7 @@ class SimplexAlign(threading.Thread):
         ## Our parent needs to implement certain methods so we can communicate
         # with it.
         self.parent = parent
-        ## This is the data for the wavelength that is not transformed; the 
+        ## This is the data for the wavelength that is not transformed; the
         # other wavelength attempts to align itself with this.
         self.referenceData = referenceData
 
@@ -131,8 +131,6 @@ class SimplexAlign(threading.Thread):
         if shouldAdjustGuess:
             movingData = self.parent.getFilteredData(self.index)
             dx, dy = self.getOffset(self.referenceData, movingData)
-            print "initial X,Y translation ", dx, ",", dy, " for channel ", index, " (by cross-correlation)"
-
             self.guess[0] += dx
             self.guess[1] += dy
 
@@ -149,7 +147,7 @@ class SimplexAlign(threading.Thread):
 
         ## For 3D alignment, the data that is held fixed in place.
         self.referenceVolume = None
-        ## For 3D alignment, the data that moves with respect to 
+        ## For 3D alignment, the data that moves with respect to
         # self.referenceVolume
         self.movingVolume = None
 
@@ -158,10 +156,10 @@ class SimplexAlign(threading.Thread):
 
     ## Perform optimization. First we do 2D alignment; then we align Z while
     # holding the 2D transformation parameters fixed (on the assumption that
-    # Z alignment is independent of 2D alignment). 
+    # Z alignment is independent of 2D alignment).
     def run(self):
         # Keep iterating Simplex until the cost doesn't change much from
-        # one iteration to the next. Simplex is prone to getting stuck in 
+        # one iteration to the next. Simplex is prone to getting stuck in
         # local minima that are within the initial step size of the actual
         # minimum, but not within the *current* step size -- thus, restarting
         # Simplex resets its step size and allows it to get to the true minimum.
@@ -169,9 +167,10 @@ class SimplexAlign(threading.Thread):
         numHits = 0
         while delta > MIN_COST_CHANGE:
             transform = scipy.optimize.fmin(
-                    self.cost, [0, 0, 0, 0], 
+                    self.cost, [0, 0, 0, 0],
                     xtol = .00001
             )
+            print "  (channel ", self.index, ")"
             delta = abs(self.currentCost - self.startingCost)
             self.startingCost = self.currentCost
             self.guess = transform * STEP_MULTIPLIER + self.guess
@@ -197,16 +196,17 @@ class SimplexAlign(threading.Thread):
             else:
                 # Inform the progress dialog that we're in 3D mode now.
                 self.parent.alignSwitchTo3D(self.index)
+                print "Channel ", self.index, " switched to 3D"
                 # Just a single pass here should be sufficient.
-                result = scipy.optimize.fmin(self.cost3D, 
-                        [self.zTransform / Z_MULTIPLIER], 
+                result = scipy.optimize.fmin(self.cost3D,
+                        [self.zTransform / Z_MULTIPLIER],
                         xtol = .00001)[0]
                 # gb - put line below inside if/else and added initial zTransform
                 self.zTransform = self.zTransform + result * Z_MULTIPLIER
             #self.zTransform = result * Z_MULTIPLIER
-        
+
         transform = transform * STEP_MULTIPLIER + self.guess
-        transform = (transform[0], transform[1], self.zTransform, 
+        transform = (transform[0], transform[1], self.zTransform,
                      transform[2], transform[3])
         self.parent.finishAutoAligning(transform, self.index)
 
@@ -242,9 +242,9 @@ class SimplexAlign(threading.Thread):
     def cost3D(self, transform):
         zTransform = transform[0] * Z_MULTIPLIER
         shiftedVolume = scipy.ndimage.interpolation.shift(
-                self.movingVolume, [zTransform, 0, 0], 
+                self.movingVolume, [zTransform, 0, 0],
                 order = 1, cval = self.parent.dataDoc.averages[self.index])
-        cost = 1 - self.correlationCoefficient(shiftedVolume, 
+        cost = 1 - self.correlationCoefficient(shiftedVolume,
                 self.referenceVolume)
         self.currentCost = cost
         #print "Current Z cost for",self.index,"is",cost,"for offset",zTransform
@@ -252,7 +252,7 @@ class SimplexAlign(threading.Thread):
         return cost
 
 
-    ## Return the correlation coefficient between two matrices.                     
+    ## Return the correlation coefficient between two matrices.
     def correlationCoefficient(self, a, b):
         aTmp = a - a.mean()
         bTmp = b - b.mean()
@@ -262,25 +262,34 @@ class SimplexAlign(threading.Thread):
         return numerator / numpy.sqrt(aSquared * bSquared)
 
 
-    ## Return an estimated offset (as an XY tuple) between two matrices using       
-    # cross correlation.                                                            
-    def getOffset(self, a, b):                                                            
+    ## Return an estimated offset (as an XY tuple) between two matrices using
+    # cross correlation.
+    def getOffset(self, a, b):
         # FIXME: not robust, or buggy
-        aFT = numpy.fft.fftn(a)                                                     
-        bFT = numpy.fft.fftn(b)                                                     
-        correlation = numpy.fft.ifftn(aFT * bFT.conj()).real                        
-        best = numpy.array(numpy.where(correlation == correlation.max()))           
-        # They're in YX order, so flip 'em.                                         
-        coords = best[:,0][::-1]                                                    
-        # Negative offsets end up on the wrong side of the image, so                
-        # correct for that.                                                         
-        for i, val in enumerate(coords):                                            
-            if val > a.shape[i] / 2:                                                
-                coords[i] -= a.shape[i]                                             
-                                                                                    
+        aFT = numpy.fft.fftn(a)
+        bFT = numpy.fft.fftn(b)
+        correlation = numpy.fft.ifftn(aFT * bFT.conj()).real
+        best = numpy.array(numpy.where(correlation == correlation.max()))
+        # They're in YX order, so flip 'em.
+        coords = best[:,0][::-1]
+        # Negative offsets end up on the wrong side of the image, so
+        # correct for that.
+        for i, val in enumerate(coords):
+            if val > a.shape[i] / 2:
+                coords[i] -= a.transpose().shape[i]
+        try:
+            # test / debug plot of correlation
+            print "X,Y translation estimate for channel ", self.index, ": ", coords[0], ",", coords[1]
+            plt.title("correlation for channel %d" % self.index)
+            plt.imshow(correlation)
+            plt.show()
+        except NameError:
+            # HACK: plt not defined, so debug plots not shown (TODO, improve)
+            pass
         return coords
 
 if __name__ == '__main__':
+    import matplotlib.pyplot as plt
     testDoc = datadoc.DataDoc('./test/testData.dv')
     testDoc.image.Mrc.info()
     print "Starting test data auto-alignment..."
