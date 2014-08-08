@@ -13,7 +13,6 @@ import scipy.ndimage.filters
 import viewerWindow
 import viewControlWindow
 import dialogs
-import editor
 import util
 import histogram
 import align
@@ -31,13 +30,9 @@ class MainWindow(wx.Frame):
 
         self.auiManager = wx.aui.AuiManager()
         self.auiManager.SetManagedWindow(self)
-
-        # Disable the "Windows" menu, which is pretty pointless for us.
-        wx.MenuBar.SetAutoWindowMenu(False)
-
+        wx.MenuBar.SetAutoWindowMenu(False)  # disable "Windows" menu
         self.menuBar = wx.MenuBar()
 
-        # Create 'File' menu with input/output options
         fileMenu = wx.Menu()
         self.menuBar.Append(fileMenu, 'File')
         util.addMenuItem(self, fileMenu, '&Open...\tCtrl+O', self.OnFileOpen)
@@ -48,19 +43,15 @@ class MainWindow(wx.Frame):
                 self.OnLoadParams)
         util.addMenuItem(self, fileMenu, '&Export parameters...\tCtrl+E',
                 self.OnExportParams)
-        # As of the Cocoa build of WX, we have to add this manually 
         util.addMenuItem(self, fileMenu, '&Quit\tCtrl+Q', 
                 self.OnQuit)
 
-        # Create 'View' menu with view options
         viewMenu = wx.Menu()
         self.menuBar.Append(viewMenu, 'View')
         viewMenu.AppendSeparator()
         util.addMenuItem(self, viewMenu, '&Show view controls\tCtrl+T', 
                 self.OnViewControls)
 
-        # Create 'Edit' menu with data editing options
-        # TODO: add Split/Merge and Proj/Resize
         editMenu = wx.Menu()
         self.menuBar.Append(editMenu, 'Edit')
         util.addMenuItem(self, editMenu, '&Auto align...', self.OnAutoAlign)
@@ -69,41 +60,24 @@ class MainWindow(wx.Frame):
         util.addMenuItem(self, editMenu, '&Batch process...\tCtrl+B',
                 self.OnBatchProcess)
 
-        # Create 'Help' menu with 'About' option. Note that in OSX the About
-        # option automatically gets shunted over to the default application 
-        # menu because we use ID_ABOUT here. The otherwise-bare Help menu 
-        # would get created anyway by OSX even though we don't have anything
-        # to put in it...
         helpMenu = wx.Menu()
         self.menuBar.Append(helpMenu, 'Help')
-
         item = wx.MenuItem(helpMenu, wx.ID_ABOUT, '&About OMX Editor')
         self.Bind(wx.EVT_MENU, self.OnAbout, id = wx.ID_ABOUT)
         helpMenu.AppendItem(item)
 
         self.SetMenuBar(self.menuBar)
-
         self.auiManager.AddPane(self.CreateNotebook(), wx.aui.AuiPaneInfo().CloseButton(False).CenterPane())
-
-        # The size of the AUI panes is only determined after auiManager.Update()
         self.auiManager.Update()
 
         self.Bind(wx.aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.OnNotebookPageChange)
 
-        # Status bar for displaying information based on the mouse position
-        # (e.g. pixel values, histogram values).
-        self.statbar = self.CreateStatusBar(2)
-        # We have to use a separate FileDropper instance for each area we 
-        # want to have support drag-and-drop, or else the program segfaults
-        # on exit (presumably due to a double-free).
-        # Handles dropping on the upper area of the window with the tabs
-        self.SetDropTarget(FileDropper(self))
-        # Handles dropping on the main area of the window with the controls
-        self.controlPanelsNotebook.SetDropTarget(FileDropper(self))
+        self.statbar = self.CreateStatusBar(2)  # status bar (mouse pos etc.)
 
-        ## Store this position for later so we can refer to it when
-        # opening new files.
-        self.origPos = self.GetPosition()
+        self.SetDropTarget(FileDropper(self))  # upper area of window
+        self.controlPanelsNotebook.SetDropTarget(FileDropper(self))  # main area
+
+        self.origPos = self.GetPosition() # use when opening new files
 
 
     ## Exit the program.
@@ -178,8 +152,7 @@ class MainWindow(wx.Frame):
         for wavelength in xrange(doc.numWavelengths):   
             dx, dy, dz, angle, zoom = alignParams[wavelength]          
             if dz and self.size[2] == 1:                                    
-                # Chris HACK: no Z translate in 2D files.
-                dz = 0                                                      
+                dz = 0  # Chris' HACK: no Z translate in 2D files
             if dx or dy or dz or angle or zoom != 1:                        
                 tags = tags + "_EAL"
                 break
@@ -303,7 +276,6 @@ class MainWindow(wx.Frame):
                         "Error", wx.OK).ShowModal()
                 return
 
-            #newPanel = controlPanel.ControlPanel(self, image_to_edit)
             newPanel = ControlPanel(self, doc_to_edit)
             self.controlPanelsNotebook.AddPage(
                     newPanel,
@@ -348,8 +320,7 @@ class FileDropper(wx.FileDropTarget):
 
 
 
-## This class provides an interface for viewing and performing basic 
-# manipulations on MRC files.
+## This panel provides an interface for viewing and editing an MRC file
 class ControlPanel(wx.Panel):
     def __init__(self, parent, imageDoc,
                  id = wx.ID_ANY, pos = wx.DefaultPosition,
@@ -362,9 +333,6 @@ class ControlPanel(wx.Panel):
         self.dataDoc = imageDoc
         # list of channel color tuples (default white before updating)
         self.colors = [(1, 1, 1,) for x in range(self.dataDoc.numWavelengths)]
-        # store an Edits instance with an up-to-date DataDoc list
-        self.editor = editor.Editor(parent.getDocs()+[imageDoc])
-        #self.edit.printDocList()
 
         ## Which wavelengths are controlled by the mouse
         self.mouseControlWavelengths = [False] * self.dataDoc.numWavelengths
