@@ -138,7 +138,7 @@ class AlignProgressWindow(wx.Frame):
                 numpy.array([cutoff]),
                 numpy.array([0, 1]),
                 linestyle = '--',
-                color = parent.colors[wavelength])
+                color = self.parent.colors[wavelength])
         self.axes.add_line(line)
         self.alignModeCutoffPoint[wavelength] = cutoff
 
