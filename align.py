@@ -3,6 +3,87 @@ import scipy
 import scipy.optimize
 import threading
 import time
+import datadoc
+
+class AutoAligner():
+    """
+    Headless SimplexAlign runner with method stubs expected by SimplexAlign,
+    since the SimplexAlign class is strongly coupled to the OMXeditor GUI.
+    """
+
+    def __init__(self, dataDoc, refChannel):
+        self.dataDoc = dataDoc
+        self.refChannel = refChannel
+
+    def run(self, saveParamaters=True, saveLog=True, saveAligned=False):
+        """
+        Use Simplex method to auto-align channels to the reference and save
+        parameter file, log file and aligned image as requested.
+        """
+
+        channelsToAlign = range(self.dataDoc.numWavelengths)
+        del channelsToAlign[self.refChannel]
+        self.alignedChannels = dict([(i, False) for i in channelsToAlign])
+
+        targetCoords = self.dataDoc.getSliceCoords((1, 2))
+        referenceData = self.getFilteredData(self.refChannel)
+
+        for i in channelsToAlign:
+            if i == self.refChannel:
+                continue
+            guess = [0.0, 0.0, 0.0, 0.0, 1.0]  # X, Y, Z, Rot, Zoom
+            aligner = SimplexAlign(self, referenceData, i, guess,
+                    shouldAdjustGuess = True)
+
+        if saveParameters:
+            print "TODO: save alignment parameter file!"
+
+    def getFilteredData(self, channel, perpendicularAxes = (1, 2)):
+        """
+        Return data thresholded at mid-point between mean/max and normalized 0-1.
+        """
+        targetCoords = self.dataDoc.getSliceCoords(perpendicularAxes)
+        baseData = self.dataDoc.takeSlice(targetCoords).astype(numpy.float)[channel]
+        minCut = (baseData.max() + baseData.mean()) / 2
+        maxCut = baseData.max()
+        baseData[numpy.where(baseData < minCut)] = minCut
+        baseData[numpy.where(baseData > maxCut)] = maxCut
+        return (baseData - minCut) / (maxCut - minCut)
+
+
+    def getFullVolume(self, channel, worker):
+        """
+        Return 3D array for channel + reference channel and pass to worker.
+        """
+        result = self.dataDoc.alignAndCrop(
+                wavelengths = [self.refChannel, channel],
+                timepoints = [self.dataDoc.curViewIndex[1]])
+
+    def updateAutoAlign(self, startCost, currentCost, channel):
+        """
+        Update status text.   
+        """
+        print "channel ", channel, " current cost = ", currentCost
+
+    def alignSwitchTo3D(self, channel):
+        """
+        Aligner thread for this channel is now working on 3D.
+        """
+        pass
+
+    def finishAutoAligning(self, result, channel):
+        """
+        Act on notification from an aligner thread that it is done.
+        """
+        self.alignedChannels[channel] = True
+        allDone = True
+        for i, done in self.alignedChannels.iteritems():
+            if not done:
+                allDone = False
+                break
+        print "Got transformation: ", result, " for channel ", channel
+        self.dataDoc.setAlignParams(channel, result)
+
 
 ## Step size multipliers to convince simplex to take differently-sized steps
 # in each parameter. Simplex's initial step size is .00025 -- okay for zoom
@@ -30,7 +111,7 @@ class SimplexAlign(threading.Thread):
     # \param guess Initial alignment parameters (dx, dy, rotation, zoom)
     # \param shouldAdjustGuess If true, use cross correlation to adjust the 
     #        guess in an attempt to improve it.
-    def __init__(self, parent, referenceData, index, guess, 
+    def __init__(self, parent, referenceData, index, guess,
                  shouldAdjustGuess = False):
         threading.Thread.__init__(self)
         ## Our parent needs to implement certain methods so we can communicate
@@ -150,7 +231,7 @@ class SimplexAlign(threading.Thread):
         if self.startingCost is None:
             self.startingCost = cost
         self.currentCost = cost
-        print "Current cost for",self.index,"is",cost,"for transform",fullTransform
+        #print "Current cost for",self.index,"is",cost,"for transform",fullTransform
         self.parent.updateAutoAlign(self.startingCost, self.currentCost, self.index)
         return cost
 
@@ -165,7 +246,7 @@ class SimplexAlign(threading.Thread):
         cost = 1 - self.correlationCoefficient(shiftedVolume, 
                 self.referenceVolume)
         self.currentCost = cost
-        print "Current Z cost for",self.index,"is",cost,"for offset",zTransform
+        #print "Current Z cost for",self.index,"is",cost,"for offset",zTransform
         self.parent.updateAutoAlign(self.startingCost, self.currentCost, self.index)
         return cost
 
@@ -196,3 +277,10 @@ class SimplexAlign(threading.Thread):
                 coords[i] -= a.shape[i]                                             
                                                                                     
         return coords
+
+if __name__ == '__main__':
+    testDoc = datadoc.DataDoc('./test/testData.dv')
+    testDoc.image.Mrc.info()
+    print "Starting test data auto-alignment..."
+    aligner = AutoAligner(testDoc, 0)
+    aligner.run()
