@@ -89,10 +89,10 @@ class AutoAligner():
 # in each parameter. Simplex's initial step size is .00025 -- okay for zoom
 # but too small to be likely to get the right translational or rotational
 # offset.
-STEP_MULTIPLIER = numpy.array([1000, 1000, 10000, 1])
+STEP_MULTIPLIER = numpy.array([10000, 10000, 10000, 1])
 
 ## Multiplier to use specifically for the Z transform portion.
-Z_MULTIPLIER = 10000
+Z_MULTIPLIER = 20000
 
 ## As long as running Simplex improves our cost function by at least this
 # much, we'll run it again.
@@ -131,6 +131,7 @@ class SimplexAlign(threading.Thread):
         if shouldAdjustGuess:
             movingData = self.parent.getFilteredData(self.index)
             dx, dy = self.getOffset(self.referenceData, movingData)
+            print "initial X,Y translation ", dx, ",", dy, " for channel ", index, " (by cross-correlation)"
 
             self.guess[0] += dx
             self.guess[1] += dy
@@ -264,6 +265,7 @@ class SimplexAlign(threading.Thread):
     ## Return an estimated offset (as an XY tuple) between two matrices using       
     # cross correlation.                                                            
     def getOffset(self, a, b):                                                            
+        # FIXME: not robust, or buggy
         aFT = numpy.fft.fftn(a)                                                     
         bFT = numpy.fft.fftn(b)                                                     
         correlation = numpy.fft.ifftn(aFT * bFT.conj()).real                        
