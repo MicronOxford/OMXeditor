@@ -175,7 +175,7 @@ class MainWindow(wx.Frame):
             curPanel.dataDoc.alignAndCrop(savePath = targetPath)
             doc_to_edit = datadoc.DataDoc(targetPath)
             self.controlPanelsNotebook.AddPage(
-                    controlPanel.ControlPanel(self, doc_to_edit),
+                    ControlPanel(self, doc_to_edit),
                     os.path.basename(targetPath), select=True)
 
 
