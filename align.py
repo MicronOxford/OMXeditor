@@ -14,8 +14,9 @@ class AutoAligner():
     def __init__(self, dataDoc, refChannel):
         self.dataDoc = dataDoc
         self.refChannel = refChannel
+        self.alignerLock = threading.Lock()
 
-    def run(self, saveParamaters=True, saveLog=True, saveAligned=False):
+    def run(self, saveParameters=True, saveLog=True, saveAligned=False):
         """
         Use Simplex method to auto-align channels to the reference and save
         parameter file, log file and aligned image as requested.
@@ -28,12 +29,17 @@ class AutoAligner():
         targetCoords = self.dataDoc.getSliceCoords((1, 2))
         referenceData = self.getFilteredData(self.refChannel)
 
+        aligners = []
         for i in channelsToAlign:
             if i == self.refChannel:
                 continue
             guess = [0.0, 0.0, 0.0, 0.0, 1.0]  # X, Y, Z, Rot, Zoom
             aligner = SimplexAlign(self, referenceData, i, guess,
                     shouldAdjustGuess = True)
+            aligners.append(aligner)
+
+        for aligner in aligners:
+            aligner.join()
 
         if saveParameters:
             print "TODO: save alignment parameter file!"
@@ -55,34 +61,41 @@ class AutoAligner():
         """
         Return 3D array for channel + reference channel and pass to worker.
         """
-        result = self.dataDoc.alignAndCrop(
-                wavelengths = [self.refChannel, channel],
-                timepoints = [self.dataDoc.curViewIndex[1]])
+        with self.alignerLock:
+            result = self.dataDoc.alignAndCrop(
+                    wavelengths = [self.refChannel, channel],
+                    timepoints = [self.dataDoc.curViewIndex[1]])
+            # Take the first timepoint.
+            worker.setVolumes(result[0][0], result[1][0])
 
     def updateAutoAlign(self, startCost, currentCost, channel):
         """
-        Update status text.
+        Report current cost for this channel.
         """
-        print "channel ", channel, " current cost = ", currentCost
+        with self.alignerLock:
+            print "channel ", channel, " current cost = ", currentCost
 
     def alignSwitchTo3D(self, channel):
         """
         Aligner thread for this channel is now working on 3D.
         """
-        pass
+        with self.alignerLock:
+            print "Starting 3D alignment for channel ", channel
 
     def finishAutoAligning(self, result, channel):
         """
         Act on notification from an aligner thread that it is done.
         """
-        self.alignedChannels[channel] = True
-        allDone = True
-        for i, done in self.alignedChannels.iteritems():
-            if not done:
-                allDone = False
-                break
-        print "Got transformation: ", result, " for channel ", channel
-        self.dataDoc.setAlignParams(channel, result)
+        print "channel ", channel, " finished auto-aligning"
+        with self.alignerLock:
+            self.alignedChannels[channel] = True
+            allDone = True
+            for i, done in self.alignedChannels.iteritems():
+                if not done:
+                    allDone = False
+                    break
+            print "Final transformation: ", result, " for channel ", channel
+            self.dataDoc.setAlignParams(channel, result)
 
 
 ## Step size multipliers to convince simplex to take differently-sized steps
@@ -148,9 +161,8 @@ class SimplexAlign(threading.Thread):
         ## For 3D alignment, the data that is held fixed in place.
         self.referenceVolume = None
         ## For 3D alignment, the data that moves with respect to
-        # self.referenceVolume
         self.movingVolume = None
-
+        self.daemon = True
         self.start()
 
 
@@ -179,6 +191,7 @@ class SimplexAlign(threading.Thread):
         # volumes from the parent, which, due to thread communication, is a bit
         # tricky.
         # No Z alignment for flat images, of course.
+        print "entering Z-alignment code for channel ", self.index
         if self.parent.dataDoc.size[2] > 1:
             self.parent.getFullVolume(self.index, self)
             while True:
@@ -200,7 +213,7 @@ class SimplexAlign(threading.Thread):
                 # Just a single pass here should be sufficient.
                 result = scipy.optimize.fmin(self.cost3D,
                         [self.zTransform / Z_MULTIPLIER],
-                        xtol = .00001)[0]
+                        xtol = .0001)[0]
                 # gb - put line below inside if/else and added initial zTransform
                 self.zTransform = self.zTransform + result * Z_MULTIPLIER
             #self.zTransform = result * Z_MULTIPLIER
@@ -232,7 +245,6 @@ class SimplexAlign(threading.Thread):
         if self.startingCost is None:
             self.startingCost = cost
         self.currentCost = cost
-        #print "Current cost for",self.index,"is",cost,"for transform",fullTransform
         self.parent.updateAutoAlign(self.startingCost, self.currentCost, self.index)
         return cost
 
@@ -265,7 +277,6 @@ class SimplexAlign(threading.Thread):
     ## Return an estimated offset (as an XY tuple) between two matrices using
     # cross correlation.
     def getOffset(self, a, b):
-        # FIXME: not robust, or buggy
         aFT = numpy.fft.fftn(a)
         bFT = numpy.fft.fftn(b)
         correlation = numpy.fft.ifftn(aFT * bFT.conj()).real
