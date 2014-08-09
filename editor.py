@@ -16,6 +16,45 @@ import sys
 import datadoc
 import argparse
 
+
+def resultName(dataDoc, operation):
+    """
+    Generate result filename based on input and tagged by operation.
+    """
+    tag = {
+        'splitTimepoints': "EST.dv",
+        'splitChannels': "ESC.dv",
+        'reorderChannels': "ERO.dv",
+        'mergeChannels': "EMG.dv",
+        'project': "EPJ.dv",
+        'autoAlign': "EAL.dv",
+        'alignAndCrop': "EAC.dv",
+        'saveAlignParameters': "EAL-PAR.txt"
+    }[operation]
+    basename = os.path.splitext(os.path.basename(dataDoc.filePath))[0]
+    return basename + "_" + tag
+
+
+def saveAlignParameters(dataDoc, fullpath=None):
+    """
+    Save crop and alignment parameters to a .txt file.
+    """
+    if fullpath is None:
+        fullpath = os.path.dirname(dataDoc.filePath)
+        fullpath += resultName(dataDoc, 'saveAlignParameters')
+    #handle = open(fullpath, 'w')
+    #cropParams = self.cropControlPanel.getParams()
+    #for label, value in zip(['minX', 'maxX', 'minY', 'maxY', 'minZ', 'maxZ', 'minT', 'maxT'], cropParams):
+    #    handle.write("crop-%s: %s\n" % (label, value))
+    #for wavelength in xrange(self.dataDoc.numWavelengths):
+    #    alignParams = self.alignParamsPanels[wavelength].getParamsList()
+    #    # Multiply by pixel size to get offsets in microns.
+    #    alignParams[:3] = self.dataDoc.convertToMicrons(alignParams[:3])
+    #    for label, value in zip(['dx', 'dy', 'dz', 'angle', 'zoom'], alignParams):
+    #        handle.write("align-%d-%s: %s\n" % (wavelength, label, value))
+    #handle.close()
+
+
 class Editor():
     """
     This class provides an interface for running OMX Editor tasks.
@@ -27,6 +66,7 @@ class Editor():
     def __init__(self, dataDocs):
         ## a list of datadocs
         self.dataDocs = dataDocs
+
 
     def printDocsInfo(self):
         """
