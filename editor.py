@@ -42,8 +42,11 @@ def saveAlignParameters(dataDoc, fullpath=None):
     if fullpath is None:
         fullpath = os.path.dirname(dataDoc.filePath)
         fullpath += resultName(dataDoc, 'saveAlignParameters')
-    #handle = open(fullpath, 'w')
-    #cropParams = self.cropControlPanel.getParams()
+    handle = open(fullpath, 'w')
+    cropParams = zip(dataDoc.cropMin, dataDoc.cropMax)
+    for axis, index in [("X", -1), ("Y", -2), ("Z", -3), ("T", -4)]:
+        handle.write("crop-min%s: %s\n" % (axis, cropParams[index][0]))
+        handle.write("crop-max%s: %s\n" % (axis, cropParams[index][1]))
     #for label, value in zip(['minX', 'maxX', 'minY', 'maxY', 'minZ', 'maxZ', 'minT', 'maxT'], cropParams):
     #    handle.write("crop-%s: %s\n" % (label, value))
     #for wavelength in xrange(self.dataDoc.numWavelengths):
@@ -52,7 +55,7 @@ def saveAlignParameters(dataDoc, fullpath=None):
     #    alignParams[:3] = self.dataDoc.convertToMicrons(alignParams[:3])
     #    for label, value in zip(['dx', 'dy', 'dz', 'angle', 'zoom'], alignParams):
     #        handle.write("align-%d-%s: %s\n" % (wavelength, label, value))
-    #handle.close()
+    handle.close()
 
 
 class Editor():
