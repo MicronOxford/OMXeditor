@@ -956,17 +956,6 @@ class ControlPanel(wx.Panel):
                 style = wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
         if dialog.ShowModal() != wx.ID_OK:
             return
-        #handle = open(dialog.GetPath(), 'w')
-        #cropParams = self.cropControlPanel.getParams()
-        #for label, value in zip(['minX', 'maxX', 'minY', 'maxY', 'minZ', 'maxZ', 'minT', 'maxT'], cropParams):
-        #    handle.write("crop-%s: %s\n" % (label, value))
-        #for wavelength in xrange(self.dataDoc.numWavelengths):
-        #    alignParams = self.alignParamsPanels[wavelength].getParamsList()
-        #    # Multiply by pixel size to get offsets in microns.
-        #    alignParams[:3] = self.dataDoc.convertToMicrons(alignParams[:3])
-        #    for label, value in zip(['dx', 'dy', 'dz', 'angle', 'zoom'], alignParams):
-        #        handle.write("align-%d-%s: %s\n" % (wavelength, label, value))
-        #handle.close()
         editor.saveAlignParameters(self.dataDoc, dialog.GetPath())
 
 

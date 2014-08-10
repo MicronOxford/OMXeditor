@@ -47,14 +47,11 @@ def saveAlignParameters(dataDoc, fullpath=None):
     for axis, index in [("X", -1), ("Y", -2), ("Z", -3), ("T", -4)]:
         handle.write("crop-min%s: %s\n" % (axis, cropParams[index][0]))
         handle.write("crop-max%s: %s\n" % (axis, cropParams[index][1]))
-    #for label, value in zip(['minX', 'maxX', 'minY', 'maxY', 'minZ', 'maxZ', 'minT', 'maxT'], cropParams):
-    #    handle.write("crop-%s: %s\n" % (label, value))
-    #for wavelength in xrange(self.dataDoc.numWavelengths):
-    #    alignParams = self.alignParamsPanels[wavelength].getParamsList()
-    #    # Multiply by pixel size to get offsets in microns.
-    #    alignParams[:3] = self.dataDoc.convertToMicrons(alignParams[:3])
-    #    for label, value in zip(['dx', 'dy', 'dz', 'angle', 'zoom'], alignParams):
-    #        handle.write("align-%d-%s: %s\n" % (wavelength, label, value))
+    for channel in xrange(dataDoc.numWavelengths):
+        alignParams = dataDoc.alignParams[channel]
+        alignParams[:3] = dataDoc.convertToMicrons(alignParams[:3])
+        for label, value in zip(['dx', 'dy', 'dz', 'angle', 'zoom'], alignParams):
+            handle.write("align-%d-%s: %s\n" % (channel, label, value))
     handle.close()
 
 
