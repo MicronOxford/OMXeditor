@@ -4,6 +4,7 @@ import scipy.optimize
 import threading
 import time
 import datadoc
+import editor
 
 
 ## Step size multipliers to convince simplex to take differently-sized steps
@@ -32,19 +33,16 @@ class AutoAligner():
         self.refChannel = refChannel
         self.alignerLock = threading.Lock()
 
-    def run(self, saveParameters=True, saveLog=True, saveAligned=False):
+    def run(self):
         """
-        Use Simplex method to auto-align channels to the reference and save
-        parameter file, log file and aligned image as requested.
+        Use Simplex method to auto-align channels to the reference,
+        updating dataDoc.alignParams with final alignment parameters.
         """
-
         channelsToAlign = range(self.dataDoc.numWavelengths)
         del channelsToAlign[self.refChannel]
         self.alignedChannels = dict([(i, False) for i in channelsToAlign])
-
         targetCoords = self.dataDoc.getSliceCoords((1, 2))
         referenceData = self.getFilteredData(self.refChannel)
-
         aligners = []
         for i in channelsToAlign:
             if i == self.refChannel:
@@ -53,12 +51,8 @@ class AutoAligner():
             aligner = SimplexAlign(self, referenceData, i, guess,
                     shouldAdjustGuess = True)
             aligners.append(aligner)
-
         for aligner in aligners:
             aligner.join()
-
-        if saveParameters:
-            print "TODO: save alignment parameter file!"
 
     def getFilteredData(self, channel, perpendicularAxes = (1, 2)):
         """
