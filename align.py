@@ -5,10 +5,26 @@ import threading
 import time
 import datadoc
 
+
+## Step size multipliers to convince simplex to take differently-sized steps
+# in each parameter. Simplex's initial step size is .00025 -- okay for zoom
+# but too small to be likely to get the right translational or rotational
+# offset.
+STEP_MULTIPLIER = numpy.array([10000, 10000, 10000, 1])
+
+## Multiplier to use specifically for the Z transform portion.
+Z_MULTIPLIER = 20000
+
+## As long as running Simplex improves our cost function by at least this
+# much, we'll run it again.
+MIN_COST_CHANGE = .1 ** 4
+
+
 class AutoAligner():
     """
     Headless SimplexAlign runner with method stubs expected by SimplexAlign,
     since the SimplexAlign class is strongly coupled to the OMXeditor GUI.
+    SimplexAlign calls back into the GUI / AutoAligner, so locking required.
     """
 
     def __init__(self, dataDoc, refChannel):
@@ -98,18 +114,6 @@ class AutoAligner():
             self.dataDoc.setAlignParams(channel, result)
 
 
-## Step size multipliers to convince simplex to take differently-sized steps
-# in each parameter. Simplex's initial step size is .00025 -- okay for zoom
-# but too small to be likely to get the right translational or rotational
-# offset.
-STEP_MULTIPLIER = numpy.array([10000, 10000, 10000, 1])
-
-## Multiplier to use specifically for the Z transform portion.
-Z_MULTIPLIER = 20000
-
-## As long as running Simplex improves our cost function by at least this
-# much, we'll run it again.
-MIN_COST_CHANGE = .1 ** 4
 
 ## Use the Simplex algorithm as implemented in SciPy to find the transformation
 # (as an XY translation, a rotation about Z, and a zoom factor) from the first
