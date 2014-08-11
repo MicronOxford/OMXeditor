@@ -10,9 +10,32 @@
 
 import numpy
 import os
+import sys
 import argparse
+import align
 
-RESULT_TAG = {'saveAlignParameters': "EAL-PAR.txt",
+# command line options for argparse
+ARGS = [('-f', '--files', "store", str,
+         "comma-separated list of files to process"),
+        ('-a', '--align', "store", int,
+         "use this channel to auto-align an Mrc file and save parameters"),
+        ('-b', '--batch-align-and-crop', "store", str,
+         "batch-align-and-crop Mrc file(s) according to this parameter file"),
+        ('-p', '--project', "store_true",
+         "project phases and angles for the raw SI data file(s)"),
+        ('-sc', '--split-channels', "store_true",
+         "split the file(s) into one file per channel"),
+        ('-st', '--split-timepoints', "store_true",
+         "split the file(s) into one file per timepoint"),
+        ('-m', '--merge', "store_true",
+         "merge the files into a single file by appending channels"),
+        ('-r', '--reorder', "store", str,
+         "reorder channels 0,1,..N to the new order given, e.g. 3,2,1"),
+        ('-i', '--info', "store_true",
+         "display header info in the Mrc file(s)")]
+
+RESULT_TAG = {'autoAlign': "EAL-LOG.txt",
+              'saveAlignParameters': "EAL-PAR.txt",
               'alignAndCrop': "EAL.dv",
               'project': "EPJ.dv",
               'splitTimepoints': "EST.dv",
@@ -26,17 +49,28 @@ def resultName(dataDoc, operation):
     """
     Generate result filename based on input and tagged by operation.
     """
+    dirname = os.path.dirname(dataDoc.filePath)
     basename = os.path.splitext(os.path.basename(dataDoc.filePath))[0]
-    return basename + "_" + RESULT_TAG[operation]
+    return os.path.join(dirname, basename + "_" + RESULT_TAG[operation])
 
 
-def autoAlign(dataDoc, logfileFullpath=None):
+def autoAlign(dataDoc, refChannel=0, logfileFullpath=None):
     """
     Find alignment parameters relative to a reference channel,
-    printing alignment progress info (optionally to logfile),
-    and set these parameters in the dataDoc,
+    print alignment progress to logfile, save alignment parameters
+    and aligned image.
     """
-    print "TODO: implement Auto-align runner"
+    if logfileFullpath is None:
+        logfileFullpath = resultName(dataDoc, 'autoAlign')
+    fh = open(logfileFullpath, 'w')
+    stdout = sys.stdout
+    sys.stdout = fh  # redirect log from stdout to file
+    aligner = align.AutoAligner(dataDoc, refChannel)
+    aligner.run()  # updates dataDoc.alignParams
+    sys.stdout = stdout
+    fh.close()
+    saveAlignParameters(dataDoc)
+    alignAndCrop(dataDoc)  # uses dataDoc.alignParams & .cropMin, .cropMax
 
 
 def saveAlignParameters(dataDoc, fullpath=None):
@@ -44,15 +78,14 @@ def saveAlignParameters(dataDoc, fullpath=None):
     Save crop and alignment parameters to a .txt file.
     """
     if fullpath is None:
-        fullpath = os.path.dirname(dataDoc.filePath)
-        fullpath += resultName(dataDoc, 'saveAlignParameters')
+        fullpath = resultName(dataDoc, 'saveAlignParameters')
     handle = open(fullpath, 'w')
     cropParams = zip(dataDoc.cropMin, dataDoc.cropMax)
     for axis, index in [("X", -1), ("Y", -2), ("Z", -3), ("T", -4)]:
         handle.write("crop-min%s: %s\n" % (axis, cropParams[index][0]))
         handle.write("crop-max%s: %s\n" % (axis, cropParams[index][1]))
     for channel in xrange(dataDoc.numWavelengths):
-        alignParams = dataDoc.alignParams[channel]
+        alignParams = dataDoc.alignParams[channel].copy()  # avoids overwrite!
         alignParams[:3] = dataDoc.convertToMicrons(alignParams[:3])
         for label, value in zip(['dx', 'dy', 'dz', 'angle', 'zoom'],
                                 alignParams):
@@ -65,7 +98,9 @@ def alignAndCrop(dataDoc, fullpath=None):
     Align and crop a DataDoc using its align and crop params, write Mrc file,
     return path to new DataDoc.
     """
-    print "TODO: implement alignAndCrop"
+    if fullpath is None:
+        fullpath = resultName(dataDoc, 'alignAndCrop')
+    dataDoc.alignAndCrop(savePath=fullpath)
 
 
 def project(dataDoc):
@@ -100,19 +135,14 @@ def splitChannels(doc, channels):
     print "TODO: implement SplitChannels"
 
 
-def reorderChannels(doc, newMap):
+def reorderChannels(dataDoc, newMap):
     """
     Write a new Mrc file with Re-ordered channels according to list mapping
     old->new; e.g. newMap = [2, 0, 1] means 0->2, 1->0, 2->1
     and return a new DataDoc for the file.
     """
-    pathBase = os.path.splitext(doc.filePath)[0]
-    tags = '_ERO'
-    fileExt = ".dv"
-    targetFilename = pathBase + tags + fileExt
-    doc.saveSelection(savePath=targetFilename, wavelengths=newMap)
-    # TODO, get new datadoc & return
-    return True
+    fullpath = resultName(dataDoc, 'reorderChannels')
+    dataDoc.saveSelection(savePath=fullpath, wavelengths=newMap)
 
 
 def mergeChannels(docs):
@@ -162,27 +192,6 @@ if __name__ == '__main__':
     editor can be invoked as a script, passing in Mrc file paths
     and flags to run specific jobs.
     """
-    ARGS = [('-f', '--files', "store", str,
-             "comma-separated list of files to process"),
-            ('-a', '--align', "store", int,
-             "use this channel to auto-align Mrc file(s) and save parameters"),
-            ('-b', '--batch-align', "store", str,
-             "batch-align Mrc file(s) according to this parameter file"),
-            ('-c', '--crop', "store", str,
-             "crop the file(s) using comma-separated xmin,xmax,ymin,ymax"),
-            ('-sc', '--split-channels', "store_true",
-             "split the file(s) into one file per channel"),
-            ('-st', '--split-timepoints', "store_true",
-             "split the file(s) into one file per timepoint"),
-            ('-m', '--merge', "store_true",
-             "merge the files into a single file by appending channels"),
-            ('-r', '--reorder', "store", str,
-             "reorder channels 0,1,..N to the new order given, e.g. 3,2,1"),
-            ('-p', '--project', "store_true",
-             "project phases and angles for the raw SI data file(s)"),
-            ('-i', '--info', "store_true",
-             "display header info in the Mrc file(s)")]
-
     parser = argparse.ArgumentParser()
     for arg in ARGS:
         if arg[2] == "store_true":
