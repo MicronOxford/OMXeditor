@@ -1,8 +1,8 @@
 """
     The edit module collects together all non-interactive procedures
     and transformations that OMXeditor applies to MRC images.
-    The intention is that its methods can be run interactively via the
-    various Editor GUI elements, or headless as scripted jobs.
+    Its methods can be run interactively via the various Editor GUI
+    elements, or headless as scripted jobs.
 
     Authors: Graeme Ball (graeme.ball@bioch.ox.ac.uk)
              Chris Weisiger
@@ -13,26 +13,7 @@ import os
 import sys
 import argparse
 import align
-
-# command line options for argparse
-ARGS = [('-f', '--files', "store", str,
-         "comma-separated list of files to process"),
-        ('-a', '--align', "store", int,
-         "use this channel to auto-align an Mrc file and save parameters"),
-        ('-b', '--batch-align-and-crop', "store", str,
-         "batch-align-and-crop Mrc file(s) according to this parameter file"),
-        ('-p', '--project', "store_true",
-         "project phases and angles for the raw SI data file(s)"),
-        ('-sc', '--split-channels', "store_true",
-         "split the file(s) into one file per channel"),
-        ('-st', '--split-timepoints', "store_true",
-         "split the file(s) into one file per timepoint"),
-        ('-m', '--merge', "store_true",
-         "merge the files into a single file by appending channels"),
-        ('-r', '--reorder', "store", str,
-         "reorder channels 0,1,..N to the new order given, e.g. 3,2,1"),
-        ('-i', '--info', "store_true",
-         "display header info in the Mrc file(s)")]
+import datadoc
 
 RESULT_TAG = {'autoAlign': "EAL-LOG.txt",
               'saveAlignParameters': "EAL-PAR.txt",
@@ -103,11 +84,14 @@ def alignAndCrop(dataDoc, fullpath=None):
     dataDoc.alignAndCrop(savePath=fullpath)
 
 
-def project(dataDoc):
+def project(dataDoc, fullpath=None):
     """
     Write a new Mrc file consisting of projected raw SI data,
     giving a pseudo-widefield image. Return a new DataDoc.
     """
+    if fullpath is None:
+        fullpath = resultName(dataDoc, 'project')
+    return "TODO: implement project()"  # FIXME
     # 1. set up a new ndarray to hold the result
     ndIn = dataDoc.getImageArray()
     ndOut = numpy.ndarray(shape=ndIn.shape, dtype=ndIn.dtype)
@@ -124,35 +108,44 @@ def splitTimepoints(dataDoc, timePoints, fullpath=None):
     Write new Mrc file for a subset of timepoints (zero-based index),
     return a new DataDoc for the file.
     """
-    print "TODO: implement SplitTimepoints"
+    if fullpath is None:
+        fullpath = resultName(dataDoc, 'splitTimempoints')
+    return "TODO: implement SplitTimepoints()"  # FIXME
 
 
-def splitChannels(doc, channels):
+def splitChannels(doc, channels, fullpath=None):
     """
     Write new Mrc file for a subset of channels (zero-based index),
     return a new DataDoc for the file.
     """
-    print "TODO: implement SplitChannels"
+    if fullpath is None:
+        fullpath = resultName(dataDoc, 'splitChannels')
+    return "TODO: implement SplitChannels()"  # FIXME
 
 
-def reorderChannels(dataDoc, newMap):
+def reorderChannels(dataDoc, newMap, fullpath=None):
     """
     Write a new Mrc file with Re-ordered channels according to list mapping
     old->new; e.g. newMap = [2, 0, 1] means 0->2, 1->0, 2->1
     and return a new DataDoc for the file.
     """
+    if fullpath is None:
+        fullpath = resultName(dataDoc, 'reorderChannels')
+    return "TODO: finish reorderChannels()"  # FIXME
     fullpath = resultName(dataDoc, 'reorderChannels')
     dataDoc.saveSelection(savePath=fullpath, wavelengths=newMap)
 
 
-def mergeChannels(docs):
+def mergeChannels(docs, fullpath=None):
     """
     Write a new Mrc file consisting of merged input DataDocs by appending
     channels in the order passed. It is assumed that for each DataDoc
     the non-channel dimensions are equal.
     Return a new DataDoc for the Mrc file.
     """
-    return "mergeChannels returned"   # FIXME, incomplete below
+    if fullpath is None:
+        fullpath = resultName(dataDoc, 'mergeChannels')
+    return "TODO: finish mergeChannels()"  # FIXME
     shapeOut = []
     numChannelsOut = 0
     shapesExChannel = []
@@ -176,7 +169,7 @@ def mergeChannels(docs):
     # 3. Save resulting datadoc, return a ref to it, and add to our list
 
 
-def printDocsInfo(dataDoc):
+def printInfo(dataDoc):
     """
     Print header info for an Mrc file.
     """
@@ -192,6 +185,25 @@ if __name__ == '__main__':
     editor can be invoked as a script, passing in Mrc file paths
     and flags to run specific jobs.
     """
+    ARGS = [('-f', '--files', "store", str,
+             "comma-separated list of files to process"),
+            ('-a', '--align', "store", int,
+             "use this channel to auto-align an Mrc file and save parameters"),
+            ('-b', '--batchAlignAndCrop', "store", str,
+             "batch-align-and-crop Mrc file(s) using this parameter file"),
+            ('-p', '--project', "store_true",
+             "project phases and angles for the raw SI data file(s)"),
+            ('-sc', '--splitChannels', "store_true",
+             "split the file(s) into one file per channel"),
+            ('-st', '--splitTimepoints', "store_true",
+             "split the file(s) into one file per timepoint"),
+            ('-m', '--merge', "store_true",
+             "merge the files into a single file by appending channels"),
+            ('-r', '--reorder', "store", str,
+             "reorder channels 0,1,..N to the new order given, e.g. 3,2,1"),
+            ('-i', '--info', "store_true",
+             "display header info in the Mrc file(s)")]
+
     parser = argparse.ArgumentParser()
     for arg in ARGS:
         if arg[2] == "store_true":
@@ -200,10 +212,40 @@ if __name__ == '__main__':
             parser.add_argument(*arg[0:2], action=arg[2], type=arg[3],
                                 help=arg[4])
     args = parser.parse_args()
+    actions = [x[1][2:] for x in ARGS[1:]]
+    #attrs = [getattr(args, a) for a in actions]
+    #print "attrs: ", attrs
+    #filtered_attrs = filter(lambda x: x is not None and x is not False, attrs)
+    #print "filtered_attrs: ", filtered_attrs
+    #nActions = len(filtered_attrs)
+    nActions = len(filter(lambda x: x is not None and x is not False,
+                          [getattr(args, a) for a in actions]))
+    if nActions != 1:
+        parser.print_help()
+        print "\nExiting: %d actions requested (1 required)." % nActions
+        sys.exit()
 
-    print args.files.split(',')
-    if args.info:
-        print("TODO: display Mrc file info")
+    files = args.files.split(",")
+    if isinstance(args.batchAlignAndCrop, int):
+        print("TODO: batch-align-and-crop using parameter file: " % args.batchAlignAndCrop)
+    if args.merge:
+        print("TODO: merge single-channel images into a single new image")
+
+    # single-file actions
+    if len(files) != 1:
+        print "\nExiting: this action requires 1 file, not %d." % len(files)
+        sys.exit()
+    else:
+        dataDoc = datadoc.DataDoc(files[0])
     if isinstance(args.align, int):
-        print("TODO: align these files using channel %d" % args.align)
-    # FIXME, not implemented
+        autoAlign(dataDoc, args.align)
+    if args.project:
+        project(dataDoc)
+    if args.splitChannels:
+        print("TODO: split image into 1 file per channel")
+    if args.splitTimepoints:
+        print("TODO: split image into 1 file per timepoint")
+    if isinstance(args.reorder, str):
+        print("TODO: re-order channels into new order: %s" % args.reorder)
+    if args.info:
+        printInfo(dataDoc)
