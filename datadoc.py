@@ -494,7 +494,6 @@ class DataDoc:
             return outputArray.transpose([1, 0, 2, 3, 4])
         else:
             outputFile.close()
-        
 
 
     def alignAndCrop(self, wavelengths = [], timepoints = [], 
@@ -545,32 +544,27 @@ class DataDoc:
         volumeSlices = []
         for min, max in zip(self.cropMin[2:], self.cropMax[2:]):
             volumeSlices.append(slice(min, max))
-        
         for timepoint in timepoints:
             for waveIndex, wavelength in enumerate(wavelengths):
                 volume = self.imageArray[wavelength][timepoint]
-                
                 dx, dy, dz, angle, zoom = self.alignParams[wavelength]
                 if dz and self.size[2] == 1:
-                    # HACK: no Z translate in 2D files. Even
-                    # infinitesimal translates will zero out the entire slice,
-                    # otherwise.
-                    dz = 0
+                    dz = 0  # in 2D files Z translation blanks out the slice!
                 if dx or dy or dz or angle or zoom != 1:
                     # Transform the volume.
-                    volume = self.transformArray(
+                    volume2 = self.transformArray(
                             volume, dx, dy, dz, angle, zoom
                     )
+                else:
+                    volume2 = volume.copy()  # no transform
                 # Crop to the desired shape.
-                volume = volume[volumeSlices].astype(numpy.float32)
-
+                volume2 = volume2[volumeSlices].astype(numpy.float32)
                 if not savePath:
-                    outputArray[timepoint, waveIndex] = volume
+                    outputArray[timepoint, waveIndex] = volume2
                 else:
                     # Write to the file.
-                    for i, zSlice in enumerate(volume):
+                    for i, zSlice in enumerate(volume2):
                         outputFile.write(zSlice)
-
         if not savePath:
             # Reorder to WTZYX since that's what the user expects.
             return outputArray.transpose([1, 0, 2, 3, 4])
