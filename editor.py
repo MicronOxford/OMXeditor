@@ -11,6 +11,7 @@
 import numpy
 import os
 import sys
+import re
 import argparse
 import align
 import datadoc
@@ -74,6 +75,43 @@ def saveAlignParameters(dataDoc, fullpath=None):
     handle.close()
 
 
+def loadAlignParameters(alignParamsFullpath, dataDoc):
+    """
+    Load align and crop parameters from a text file and apply to dataDoc.
+    """
+    parFile = open(alignParamsFullpath, 'r')
+    cropParams = [1] * 8
+    cropLabelOrder = ['minX', 'maxX', 'minY', 'maxY', 'minZ', 'maxZ', 
+            'minT', 'maxT']
+    alignLabelOrder = ['dx', 'dy', 'dz', 'angle', 'zoom']
+    alignParams = {}
+    for line in parFile:
+        if 'crop' in line:
+            match = re.search('crop-(.*): (.*)', line)
+            field, value = match.groups()
+            cropParams[cropLabelOrder.index(field)] = int(value)
+        elif 'align' in line:
+            match = re.search('align-(\d+)-(.*): (.*)', line)
+            wavelength, field, value = match.groups()
+            wavelength = int(wavelength)
+            value = float(value)
+            if wavelength not in alignParams:
+                alignParams[wavelength] = [0.0] * 5
+                # Set zoom to 1
+                alignParams[wavelength][4] = 1.0
+            alignParams[wavelength][alignLabelOrder.index(field)] = value
+    parFile.close()
+    alignParams = [alignParams[k] for k in sorted(alignParams.keys())]
+    for channel, params in enumerate(alignParams):
+        alignParams[channel][:3] = dataDoc.convertFromMicrons(params[:3])
+    dataDoc.alignParams = alignParams
+    # deinterleave and reverse loaded cropParams with slicing tricks
+    dataDoc.cropMin = cropParams[0:][::2][::-1]
+    dataDoc.cropMax = cropParams[1:][::2][::-1]
+    dataDoc.cropMin.insert(0, 0)  # all channels
+    dataDoc.cropMax.insert(0, dataDoc.numWavelengths) # all channels
+
+
 def alignAndCrop(dataDoc, fullpath=None):
     """
     Align and crop a DataDoc using its align and crop params, write Mrc file,
@@ -82,6 +120,7 @@ def alignAndCrop(dataDoc, fullpath=None):
     if fullpath is None:
         fullpath = resultName(dataDoc, 'alignAndCrop')
     dataDoc.alignAndCrop(savePath=fullpath)
+    return fullpath
 
 
 def project(dataDoc, fullpath=None):
@@ -226,8 +265,11 @@ if __name__ == '__main__':
         sys.exit()
 
     files = args.files.split(",")
-    if isinstance(args.batchAlignAndCrop, int):
-        print("TODO: batch-align-and-crop using parameter file: " % args.batchAlignAndCrop)
+    if isinstance(args.batchAlignAndCrop, str):
+        for filepath in files:
+            dataDoc = datadoc.DataDoc(files[0])
+            loadAlignParameters(args.batchAlignAndCrop, dataDoc)
+            alignAndCrop(dataDoc)
     if args.merge:
         print("TODO: merge single-channel images into a single new image")
 
