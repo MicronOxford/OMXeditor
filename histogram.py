@@ -1,5 +1,3 @@
-import util
-
 import numpy
 from OpenGL.GL import *
 import wx

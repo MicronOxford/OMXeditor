@@ -3,10 +3,7 @@ matplotlib.use('WXAgg')
 import numpy
 import pylab
 import wx
-
-# Needed for COLORS_LIST to keep a consistent color scheme with the wavelengths
-# in the viewers.
-import controlPanel
+import util
 
 ## This module shows a window displaying a plot of alignment progress.
 # Much of it is adapted from this matplotlib example:
@@ -15,7 +12,7 @@ import controlPanel
 
 ## This class provides a window that displays a plot, showing how much 
 # improvement in alignment has been achieved. 
-class AlignProgressFrame(wx.Frame):
+class AlignProgressWindow(wx.Frame):
     def __init__(self, parent, numWavelengths):
         wx.Frame.__init__(self, parent,
                 style = wx.RESIZE_BORDER | wx.FRAME_TOOL_WINDOW | wx.CAPTION)
@@ -54,14 +51,14 @@ class AlignProgressFrame(wx.Frame):
                     self.axes.plot(
                         self.data[wavelength],
                         linewidth = 1, 
-                        color = controlPanel.COLORS_LIST[wavelength]
+                        color = parent.colors[wavelength]
                     )[0]
             )
             # All lines start off invisible
             line = matplotlib.lines.Line2D(numpy.arange(10),
                     numpy.array([.5] * 10),
                     linestyle = '--',
-                    color = controlPanel.COLORS_LIST[wavelength],
+                    color = parent.colors[wavelength],
                     visible = False)
             self.bestLines.append(line)
             self.axes.add_line(line)
@@ -141,7 +138,7 @@ class AlignProgressFrame(wx.Frame):
                 numpy.array([cutoff]),
                 numpy.array([0, 1]),
                 linestyle = '--',
-                color = controlPanel.COLORS_LIST[wavelength])
+                color = self.parent.colors[wavelength])
         self.axes.add_line(line)
         self.alignModeCutoffPoint[wavelength] = cutoff
 
