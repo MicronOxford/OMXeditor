@@ -34,15 +34,13 @@ since then. Very little of the original code remains.
 -------------------------------------------------------------------------------
 
 
-Modifications made by graemeball@googlemail.com (Micron Oxford)
-===============================================================
-
-2012
-----
+Modifications made by graemeball@googlemail.com
+===============================================
 
 Bufixes
 ~~~~~~~
 * fixed realign.py for correct application of Z-alignment correction
+* fixed bug in SimplexAlign.getOffset() for non-square images
 
 Customization
 ~~~~~~~~~~~~~
@@ -51,26 +49,13 @@ Customization
 ** "wavelengths" renamed to channels, and "Crop controls" to "Crop parameters"
 * changed save convention from new folder/ to new file with three-letter code:-
 ** _EAL = Editor ALigned
-** _ECR = Editor CRopped
-** _EPJ = Editor ProJected (SI raw => "widefield" by averaging phases/angles)
-** _ERS = Editor ReSized
-** _ERO = Editor ReOrdered
-** _EMG = Editor MerGed (i.e. from previously split channels)
 * splitting time-points/channels saves files in a new folder (FileRoot_ESP):-
-** FileRoot_C{c}.ext where c=channel number
-** FileRoot_T{t}.ext where t=timepoint
-
-Feature additions
-~~~~~~~~~~~~~~~~~
-* projection SI raw -> widefield
-* resizing/resampling
-* channel re-ordering
-* channel merging
-* channel splitting
+** FileRoot_C{c}.dv where c=channel number
+** FileRoot_T{t}.dv where t=timepoint
+* refactored modules, and added editor.py for headless / CLI usage
 
 TODO
 ----
-* refactor: move editing functions to editor.py and provide headless CLI interface
 * refactor: split combined editing function dialogs into individual dialogs & finish
 * refactor: add docstrings and try to improve adherence to conventions
 * document: project history, licensing, READMEs
