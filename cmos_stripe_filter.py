@@ -25,9 +25,8 @@ def main():
     """Collect input filename, create output file, and filter each slice"""
 
     input_path = sys.argv[1]
-    print "arg0: " + input_path
-    if not os.path.isabs(input_path):
-        print "You must give a full path to the input file"
+    if not os.path.exists(input_path):
+        print "Cannot find file: " + input_path
         sys.exit()
     else:
         # Fourier Filter Stripes: copy to new file (data will be overwritten)
@@ -74,7 +73,8 @@ def filter_stripes(yx_slice, horizontal=True):
     else:
         yc = img_f.shape[0] / 2  # y center in freq space (zero y freq / offset)
         img_f[yc:yc+1, :] = 1.0  # suppress horizontal stripe in *freq* space
-    img_filtered = abs(np.fft.ifft2(np.fft.ifftshift(img_f)))
+    img_filtered = np.fft.ifft2(np.fft.ifftshift(img_f))
+    img_filtered = img_filtered.real
     residual = yx_slice - img_filtered
     # add offset back to filtered image to prevent negative intensities
     return img_filtered + residual.mean()
