@@ -9,6 +9,7 @@ import traceback
 import numpy
 import datadoc
 import scipy.ndimage.filters
+import tifffile
 
 import editor
 import viewerWindow
@@ -270,7 +271,10 @@ class MainWindow(wx.Frame):
             return # Do nothing for directories
         else:
             try:
-                doc_to_edit = datadoc.DataDoc(filename) 
+                if filename[-4:] == '.tif':
+                    doc_to_edit = self.openTiffAsMrc(filename)
+                else:
+                    doc_to_edit = datadoc.DataDoc(filename) 
             except Exception, e:
                 wx.MessageDialog(None, 
                         "Failed to open file: %s\n\n%s" % (e, traceback.format_exc()), 
@@ -281,6 +285,17 @@ class MainWindow(wx.Frame):
             self.controlPanelsNotebook.AddPage(
                     newPanel,
                     os.path.basename(filename), select=True)
+
+    def openTiffAsMrc(self, filename):
+        """Open a Tiff file and convert to an Mrc file for further use."""
+        with tifffile.TiffFile(filename) as tif:
+            images = tif.asarray()
+            # TODO: make new Mrc and populate pixels + metadata
+            #for page in tif:
+            #    for tag in page.tags.values():
+            #        t = tag.name, tag.value
+            #    image = page.asarray()
+            raise NotImplementedError('TODO: implement Tiff -> Mrc conversion')
 
 
     def OnNotebookPageChange(self, event):
