@@ -288,14 +288,50 @@ class MainWindow(wx.Frame):
 
     def openTiffAsMrc(self, filename):
         """Open a Tiff file and convert to an Mrc file for further use."""
+        def cancel_on_todo(todo):
+            raise NotImplementedError("TODO: " + todo)
+        num_den = re.compile('\(([0-9]+),([0-9]+)\)')
+        def cal(res_tag):
+            res_tag = str(res_tag).split()
+            m_num_den = num_den.match(''.join(res_tag[4:6]))
+            return float(m_num_den.group(2)) / float(m_num_den.group(1))
+
         with tifffile.TiffFile(filename) as tif:
-            images = tif.asarray()
-            # TODO: make new Mrc and populate pixels + metadata
-            #for page in tif:
-            #    for tag in page.tags.values():
-            #        t = tag.name, tag.value
-            #    image = page.asarray()
-            raise NotImplementedError('TODO: implement Tiff -> Mrc conversion')
+            if not tif.is_imagej:
+                cancel_on_todo("handle non-imagej tiffs")
+            im_arr = tif.asarray()
+            arr_shape = im_arr.shape
+            page0 = tif.pages[0]
+            tag = page0.imagej_tags
+            if not tag.hyperstack:
+                cancel_on_todo("handle non-hyperstack tiffs")
+            if tag.unit != "micron":
+                cancel_on_todo("handle non-micron calibration")
+            nim = tag['images']
+            try:
+                nc = tag['channels']
+            except KeyError:
+                nc = 1
+            try:
+                nz = tag['slices']
+            except KeyError:
+                nz = 1
+            try:
+                nt = tag['frames']
+            except KeyError:
+                nt = 1
+            cal_x = cal(page0.tags['x_resolution'])
+            cal_y = cal(page0.tags['y_resolution'])
+            cal_z = tag['spacing']
+            bit_depth = page0.bits_per_sample 
+            if bit_depth != 16:
+                cancel_on_todo("Tiff -> Mrc for bit_depth=" + str(bit_depth))
+            # dump everything we have so far before bailing
+            infos = ['nim', 'nc', 'nt', 'nz', 'cal_x', 'cal_y', 'cal_z', 'bit_depth', 'arr_shape']
+            for info in infos:
+                print info + ':', eval(info)
+
+            raise NotImplementedError("TODO: make new Mrc and populate pixels + metadata")
 
 
     def OnNotebookPageChange(self, event):
