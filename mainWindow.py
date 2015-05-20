@@ -3,7 +3,6 @@ import os
 import re
 import sys
 import threading
-import time
 import traceback
 
 import numpy
@@ -129,7 +128,7 @@ class MainWindow(wx.Frame):
 
         self.controlPanelsNotebook.DeletePage(pageIndex)
         self.controlPanelsNotebook.InsertPage(pageIndex, 
-                controlPanel.ControlPanel(self, doc_to_edit),
+                ControlPanel(self, doc_to_edit),
                 os.path.basename(targetPath), select=True)
 
     # gb, Oct2012 - check if crop/align params non-default - update save name
@@ -272,7 +271,8 @@ class MainWindow(wx.Frame):
         else:
             try:
                 if filename[-4:] == '.tif':
-                    doc_to_edit = self.openTiffAsMrc(filename)
+                    mrc_filename, doc_to_edit = self.openTiffAsMrc(filename)
+                    filename = mrc_filename
                 else:
                     doc_to_edit = datadoc.DataDoc(filename) 
             except Exception, e:
@@ -299,15 +299,14 @@ class MainWindow(wx.Frame):
         with tifffile.TiffFile(filename) as tif:
             if not tif.is_imagej:
                 cancel_on_todo("handle non-imagej tiffs")
-            im_arr = tif.asarray()
-            arr_shape = im_arr.shape
+            arr = tif.asarray()
+            arr_shape = arr.shape
             page0 = tif.pages[0]
             tag = page0.imagej_tags
             if not tag.hyperstack:
                 cancel_on_todo("handle non-hyperstack tiffs")
             if tag.unit != "micron":
                 cancel_on_todo("handle non-micron calibration")
-            nim = tag['images']
             try:
                 nc = tag['channels']
             except KeyError:
@@ -320,19 +319,12 @@ class MainWindow(wx.Frame):
                 nt = tag['frames']
             except KeyError:
                 nt = 1
-            cal_x = cal(page0.tags['x_resolution'])
-            cal_y = cal(page0.tags['y_resolution'])
-            cal_z = tag['spacing']
-            bit_depth = page0.bits_per_sample 
-            if bit_depth != 16:
-                cancel_on_todo("Tiff -> Mrc for bit_depth=" + str(bit_depth))
-            # dump everything we have so far before bailing
-            infos = ['nim', 'nc', 'nt', 'nz', 'cal_x', 'cal_y', 'cal_z', 'bit_depth', 'arr_shape']
-            for info in infos:
-                print info + ':', eval(info)
-
-            raise NotImplementedError("TODO: make new Mrc and populate pixels + metadata")
-
+            nx, ny = arr_shape[-1], arr_shape[-2]
+            cal_zyx = tag['spacing'], page0.tags['y_resolution'], page0.tags['x_resolution']
+            waves = tuple([900 + i for i in range(5)])  # TODO: proper wavelengths!!
+            mrc_filename = filename[:-4] + ".dv"
+            n_tzcyx = (nt, nz, nc, ny, nx)
+            return mrc_filename, datadoc.saveNewMrc(mrc_filename, arr, n_tzcyx, cal_zyx, waves)
 
     def OnNotebookPageChange(self, event):
         # Hide windows used by the previous panel.
