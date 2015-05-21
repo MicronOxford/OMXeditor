@@ -659,11 +659,11 @@ class DataDoc:
 
 
 ### module helper / non-instance methods
-def saveNewMrc(mrc_path, arr, n_tzcyx, cal_zyx, wavelengths):
+def saveNewMrc(mrc_path, arr, n_tzcyx, cal_xyz, wavelengths):
     """
     Write a new Mrc file using numpy ndarray 'arr' and tuples of
     - dimension sizes (nt, nz, nc, ny, nx) and
-    - pixel calibrations in microns (cal_z, cal_y, cal_x)
+    - float pixel calibrations in microns (cal_x, cal_y, cal_z)
     """
     nt, nz, nc, ny, nx = n_tzcyx
     if not wavelengths:
@@ -679,7 +679,8 @@ def saveNewMrc(mrc_path, arr, n_tzcyx, cal_zyx, wavelengths):
     hdr.NumTimes = nt
     hdr.NumWaves = nc
     hdr.ImgSequence = 2  # write in order "ZWT"
-    # TODO, write calibration info!
+    print cal_xyz
+    hdr.d = cal_xyz
 
     # write header & slices
     print "### Mrc File header ###"
