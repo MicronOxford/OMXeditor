@@ -1,5 +1,7 @@
+#!/usr/bin/env python
+
 """
-    The edit module collects together all non-interactive procedures
+    The editor module collects together all non-interactive procedures
     and transformations that OMXeditor applies to MRC images.
     Its methods can be run interactively via the various Editor GUI
     elements, or headless as scripted jobs.

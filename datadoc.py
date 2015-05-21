@@ -571,13 +571,6 @@ class DataDoc:
         else:
             outputFile.close()
 
-
-    ## Return the number of the section for the extended header, based on the 
-    # provided indices and the order in which data is stored, as indicated
-    # by the ImgSequence parameter:
-    # 0: ztw
-    # 1: wzt
-    # 2: zwt
     def getExtendedHeaderIndex(self, timepoint, wavelength, zIndex):
         sequence = self.imageHeader.ImgSequence
         numTimepoints = self.size[1]
@@ -662,3 +655,39 @@ class DataDoc:
             titles.append(self.imageHeader.title[i])
         return titles
 
+
+### module helper / non-instance methods
+def saveNewMrc(mrc_path, arr, n_tzcyx, cal_xyz, wavelengths):
+    """
+    Write a new Mrc file using numpy ndarray 'arr' and tuples of
+    - dimension sizes (nt, nz, nc, ny, nx) and
+    - float pixel calibrations in microns (cal_x, cal_y, cal_z)
+    """
+    nt, nz, nc, ny, nx = n_tzcyx
+    if not wavelengths:
+        wavelengths = [900 + n for n in range(nc)]
+
+    arr = numpy.reshape(arr, n_tzcyx)  # introduce length 1 dimensions
+    arr = arr.transpose([0, 2, 1, 3, 4])  # Mrc output shape "ZWT"
+
+    hdr = Mrc.makeHdrArray()
+    mrc_mode = Mrc.dtype2MrcMode(arr.dtype)
+    nslices = nt * nz * nc
+    Mrc.init_simple(hdr, mrc_mode, (nslices, ny, nx))  # set default hdr values
+    hdr.NumTimes = nt
+    hdr.NumWaves = nc
+    hdr.ImgSequence = 2  # write in order "ZWT"
+    hdr.d = cal_xyz
+
+    # write header & slices
+    f_out = file(mrc_path, 'wb')
+    f_out.write(hdr._array.tostring())
+    for t in range(nt):
+        for c in range(nc):
+            for z in range(nz):
+                arr_yx_yinverted = arr[t, c, z, ::-1, :]
+                f_out.write(arr_yx_yinverted.copy(order='C'))
+
+    f_out.close()
+    
+    return DataDoc(mrc_path)

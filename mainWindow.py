@@ -3,12 +3,12 @@ import os
 import re
 import sys
 import threading
-import time
 import traceback
 
 import numpy
 import datadoc
 import scipy.ndimage.filters
+import tifffile
 
 import editor
 import viewerWindow
@@ -128,7 +128,7 @@ class MainWindow(wx.Frame):
 
         self.controlPanelsNotebook.DeletePage(pageIndex)
         self.controlPanelsNotebook.InsertPage(pageIndex, 
-                controlPanel.ControlPanel(self, doc_to_edit),
+                ControlPanel(self, doc_to_edit),
                 os.path.basename(targetPath), select=True)
 
     # gb, Oct2012 - check if crop/align params non-default - update save name
@@ -270,7 +270,11 @@ class MainWindow(wx.Frame):
             return # Do nothing for directories
         else:
             try:
-                doc_to_edit = datadoc.DataDoc(filename) 
+                if filename[-4:] == '.tif':
+                    mrc_filename, doc_to_edit = self.openTiffAsMrc(filename)
+                    filename = mrc_filename
+                else:
+                    doc_to_edit = datadoc.DataDoc(filename) 
             except Exception, e:
                 wx.MessageDialog(None, 
                         "Failed to open file: %s\n\n%s" % (e, traceback.format_exc()), 
@@ -282,6 +286,47 @@ class MainWindow(wx.Frame):
                     newPanel,
                     os.path.basename(filename), select=True)
 
+    def openTiffAsMrc(self, filename):
+        """Open a Tiff file and convert to an Mrc file for further use."""
+        def cancel_on_todo(todo):
+            raise NotImplementedError("TODO: " + todo)
+        num_den = re.compile('\(([0-9]+),([0-9]+)\)')
+        def cal(res_tag):
+            res_tag = str(res_tag).split()
+            m_num_den = num_den.match(''.join(res_tag[4:6]))
+            return float(m_num_den.group(2)) / float(m_num_den.group(1))
+
+        with tifffile.TiffFile(filename) as tif:
+            if not tif.is_imagej:
+                cancel_on_todo("handle non-imagej tiffs")
+            arr = tif.asarray()
+            arr_shape = arr.shape
+            page0 = tif.pages[0]
+            tag = page0.imagej_tags
+            if not tag.hyperstack:
+                cancel_on_todo("handle non-hyperstack tiffs")
+            if tag.unit != "micron":
+                cancel_on_todo("handle non-micron calibration")
+            try:
+                nc = tag['channels']
+            except KeyError:
+                nc = 1
+            try:
+                nz = tag['slices']
+            except KeyError:
+                nz = 1
+            try:
+                nt = tag['frames']
+            except KeyError:
+                nt = 1
+            nx, ny = arr_shape[-1], arr_shape[-2]
+            cal_x = cal(page0.tags['x_resolution'])
+            cal_y = cal(page0.tags['y_resolution'])
+            cal_xyz = [float(c) for c in cal_x, cal_y, tag['spacing']]
+            waves = tuple([900 + i for i in range(5)])  # TODO: proper wavelengths!!
+            mrc_filename = filename[:-4] + ".dv"
+            n_tzcyx = (nt, nz, nc, ny, nx)
+            return mrc_filename, datadoc.saveNewMrc(mrc_filename, arr, n_tzcyx, cal_xyz, waves)
 
     def OnNotebookPageChange(self, event):
         # Hide windows used by the previous panel.

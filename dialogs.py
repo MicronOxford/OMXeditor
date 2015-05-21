@@ -242,8 +242,8 @@ class SplitMergeDialog(wx.Dialog):
             ):
         wx.Dialog.__init__(self, parent, -1, "Split/Merge", pos, size, style)
 
-        self.editor = parent.editor
-        self.dataDocs = self.editor.dataDocs
+        #self.editor = parent.editor
+        #self.dataDocs = self.editor.dataDocs
         self.dataDoc = dataDoc
 
         mainSizer = wx.BoxSizer(wx.ALIGN_CENTER)
@@ -387,7 +387,7 @@ class SplitMergeDialog(wx.Dialog):
         else:
             #targetFilename = os.path.join(savePath,
             #        os.path.basename(self.dataDoc.filePath) + '_ERE')
-            success = self.editor.reorderChannels(fullImagePath, doc, newMap)
+            success = editor.reorderChannels(fullImagePath, doc, newMap)
             if success:
                 wx.MessageBox('Re-ordering finished', 
                     'Result with _ERO tag in name.', 
