@@ -673,15 +673,12 @@ def saveNewMrc(mrc_path, arr, n_tzcyx, cal_zyx, wavelengths):
     arr = arr.transpose([0, 2, 1, 3, 4])  # Mrc output shape "ZWT"
 
     hdr = Mrc.makeHdrArray()
-    #Mrc.initHdrArrayFrom(hdr, self.imageHeader)
-    hdr.Num = (nx, ny, nt * nz * nc)
+    mrc_mode = Mrc.dtype2MrcMode(arr.dtype)
+    nslices = nt * nz * nc
+    Mrc.init_simple(hdr, mrc_mode, (nslices, ny, nx))  # set default hdr values
     hdr.NumTimes = nt
     hdr.NumWaves = nc
-    hdr.next = 0  # ext hdr size: just set to 0 for now
-    hdr.ImgSequence = 2
-    print arr.dtype
-    hdr.PixelType = Mrc.dtype2MrcMode(arr.dtype)
-    print "PixelType:", hdr.PixelType
+    hdr.ImgSequence = 2  # write in order "ZWT"
     # TODO, write calibration info!
 
     # write header & slices
