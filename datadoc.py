@@ -33,8 +33,6 @@ class DataDoc:
 
         ## Number of wavelengths in the array.
         self.numWavelengths = self.imageHeader.NumWaves
-        print "### Mrc File header ###"
-        Mrc.hdrInfo(self.imageHeader)
         numTimepoints = self.imageHeader.NumTimes
         numX = self.imageHeader.Num[0]
         numY = self.imageHeader.Num[1]
@@ -679,14 +677,10 @@ def saveNewMrc(mrc_path, arr, n_tzcyx, cal_xyz, wavelengths):
     hdr.NumTimes = nt
     hdr.NumWaves = nc
     hdr.ImgSequence = 2  # write in order "ZWT"
-    print cal_xyz
     hdr.d = cal_xyz
 
     # write header & slices
-    print "### Mrc File header ###"
-    Mrc.hdrInfo(hdr)
     f_out = file(mrc_path, 'wb')
-    print hdr._array.tostring()
     f_out.write(hdr._array.tostring())
     for t in range(nt):
         for c in range(nc):
@@ -695,60 +689,5 @@ def saveNewMrc(mrc_path, arr, n_tzcyx, cal_xyz, wavelengths):
                 f_out.write(arr_yx_yinverted.copy(order='C'))
 
     f_out.close()
-    print "wrote to file ", mrc_path
     
     return DataDoc(mrc_path)
-
-    #   nim: 1050
-    #   nc: 2
-    #   nt: 21
-    #   nz: 25
-    #   cal_x: 0.360398153464
-    #   cal_y: 0.360398153464
-    #   cal_z: 0.2498629
-    #   bit_depth: 16
-    #   arr_shape: (21, 25, 2, 33, 36)
-
-## Return the number of the section for the extended header, based on the 
-# provided indices and the order in which data is stored, as indicated
-# by the ImgSequence parameter:
-# 0: ztw
-# 1: wzt
-# 2: zwt
-#mrcHdrFields = [
-#    ('3i4', 'Num'),
-#    ('1i4', 'PixelType'),
-#    ('3i4', 'mst'),
-#    ('3i4', 'm'),
-#    ('3f4', 'd'),
-#    ('3f4', 'angle'),
-#    ('3i4', 'axis'),
-#    ('3f4', 'mmm1'),
-#    ('1i2', 'type'),
-#    ('1i2', 'nspg'),
-#    ('1i4', 'next'),
-#    ('1i2', 'dvid'),
-#    ('30i1', 'blank'),
-#    ('1i2', 'NumIntegers', 'Number of 4 byte integers stored in the extended header per section. '),
-#    ('1i2', 'NumFloats', 'Number of 4 byte floating-point numbers stored in the extended header per section. '),
-#    ('1i2', 'sub', 'Number of sub-resolution data sets stored within the image. Typically, this equals 1. '),
-#    ('1i2', 'zfac', 'Reduction quotient for the z axis of the sub-resolution images. '),
-#    ('2f4', 'mm2', 'Minimum intensity of the 2nd wavelength image. '),
-#    ('2f4', 'mm3', 'Minimum intensity of the 2nd wavelength image. '),
-#    ('2f4', 'mm4', 'Minimum intensity of the 2nd wavelength image. '),
-#    ('1i2', 'ImageType', 'Image type. See Image Type table below. '),
-#    ('1i2', 'LensNum', 'Lens identification number.'),
-#    ('1i2', 'n1', 'Depends on the image type.'),
-#    ('1i2', 'n2', 'Depends on the image type.'),
-#    ('1i2', 'v1', 'Depends on the image type. '),
-#    ('1i2', 'v2', 'Depends on the image type. '),
-#    ('2f4', 'mm5', 'Minimum intensity of the 2nd wavelength image. '),
-#    ('1i2', 'NumTimes', 'Number of time points.'),
-#    ('1i2', 'ImgSequence', 'Image sequence. 0=ZTW, 1=WZT, 2=ZWT. '),
-#    ('3f4', 'tilt', 'X axis tilt angle (degrees). '),
-#    ('1i2', 'NumWaves', 'Number of wavelengths.'),
-#    ('5i2', 'wave', 'Wavelength 1, in nm.'),
-#    ('3f4', 'zxy0', 'X origin, in um.'),
-#    ('1i4', 'NumTitles', 'Number of titles. Valid numbers are between 0 and 10. '),
-#    ('10a80', 'title', 'Title 1. 80 characters long. '),
-#]
