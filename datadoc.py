@@ -690,7 +690,8 @@ def saveNewMrc(mrc_path, arr, n_tzcyx, cal_zyx, wavelengths):
     for t in range(nt):
         for c in range(nc):
             for z in range(nz):
-                f_out.write(arr[t, c, z])
+                arr_yx_yinverted = arr[t, c, z, ::-1, :]
+                f_out.write(arr_yx_yinverted.copy(order='C'))
 
     f_out.close()
     print "wrote to file ", mrc_path
