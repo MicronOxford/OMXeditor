@@ -323,10 +323,10 @@ class MainWindow(wx.Frame):
             cal_x = cal(page0.tags['x_resolution'])
             cal_y = cal(page0.tags['y_resolution'])
             cal_xyz = [float(c) for c in cal_x, cal_y, tag['spacing']]
-            waves = tuple([900 + i for i in range(5)])  # TODO: proper wavelengths!!
+            # TODO: wavelengths, min/max
             mrc_filename = filename[:-4] + ".dv"
             n_tzcyx = (nt, nz, nc, ny, nx)
-            return mrc_filename, datadoc.saveNewMrc(mrc_filename, arr, n_tzcyx, cal_xyz, waves)
+            return mrc_filename, datadoc.saveNewMrc(mrc_filename, arr, n_tzcyx, cal_xyz)
 
     def OnNotebookPageChange(self, event):
         # Hide windows used by the previous panel.

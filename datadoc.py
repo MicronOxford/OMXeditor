@@ -657,7 +657,7 @@ class DataDoc:
 
 
 ### module helper / non-instance methods
-def saveNewMrc(mrc_path, arr, n_tzcyx, cal_xyz, wavelengths):
+def saveNewMrc(mrc_path, arr, n_tzcyx, cal_xyz, wavelengths=None):
     """
     Write a new Mrc file using numpy ndarray 'arr' and tuples of
     - dimension sizes (nt, nz, nc, ny, nx) and
@@ -665,7 +665,7 @@ def saveNewMrc(mrc_path, arr, n_tzcyx, cal_xyz, wavelengths):
     """
     nt, nz, nc, ny, nx = n_tzcyx
     if not wavelengths:
-        wavelengths = [900 + n for n in range(nc)]
+        wavelengths = tuple(900 + n for n in range(5))
 
     arr = numpy.reshape(arr, n_tzcyx)  # introduce length 1 dimensions
     arr = arr.transpose([0, 2, 1, 3, 4])  # Mrc output shape "ZWT"
@@ -678,6 +678,7 @@ def saveNewMrc(mrc_path, arr, n_tzcyx, cal_xyz, wavelengths):
     hdr.NumWaves = nc
     hdr.ImgSequence = 2  # write in order "ZWT"
     hdr.d = cal_xyz
+    hdr.wave = wavelengths
 
     # write header & slices
     f_out = file(mrc_path, 'wb')
