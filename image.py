@@ -151,7 +151,7 @@ class Image:
 
     ## Free the allocated GL texture
     def wipe(self):
-        GL.glDeleteTextures(self.textureID)
+        GL.glDeleteTextures(int(self.textureID))
    
 
     ## Accept a new array of image data.

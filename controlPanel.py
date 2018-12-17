@@ -115,18 +115,31 @@ class ControlPanel(wx.Panel):
                     )
             )
 
-        # Adjust window positions - parent moved right for new window0
+        # Adjust window positions - parent moved right for new window0 (Windows7)
         base = self.parent.origPos
         self.windows[0].SetPosition( base )
         rect = self.windows[0].GetRect()
-        self.windows[0].SetPosition( (rect[0]-rect[2], rect[1]) )
+        self.windows[0].SetPosition( (rect[0], rect[1]) )
         if len(self.windows) > 1:
             # We have the XZ and YZ views, so we need to position them too.
-            self.windows[1].SetPosition( (rect[0]-rect[2], rect[1] + rect[3]) )
+            self.windows[1].SetPosition( (rect[0], rect[1] + rect[3]) )
             rect2 = self.windows[2].GetRect()
-            self.windows[2].SetPosition( (rect[0]-rect[2]-rect2[2], rect[1]) )
+            self.windows[2].SetPosition( (rect[0]-rect2[2], rect[1]) )
         # move the parent last because the other windows move with it (Mac)
-        self.parent.SetPosition( (rect[0]+rect[2], rect[1]) )
+        #self.parent.SetPosition( (rect[0]+rect[2], rect[1]) )
+		
+		# # Adjust window positions - parent moved right for new window0 (Mac)
+        # base = self.parent.origPos
+        # self.windows[0].SetPosition( base )
+        # rect = self.windows[0].GetRect()
+        # self.windows[0].SetPosition( (rect[0]-rect[2], rect[1]) )
+        # if len(self.windows) > 1:
+            # # We have the XZ and YZ views, so we need to position them too.
+            # self.windows[1].SetPosition( (rect[0]-rect[2], rect[1] + rect[3]) )
+            # rect2 = self.windows[2].GetRect()
+            # self.windows[2].SetPosition( (rect[0]-rect[2]-rect2[2], rect[1]) )
+        # # move the parent last because the other windows move with it (Mac)
+        # self.parent.SetPosition( (rect[0]+rect[2], rect[1]) )
 
         self.setParentSize()
 
